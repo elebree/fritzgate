@@ -1,12 +1,12 @@
 # FritzGate 
-[![en](https://img.shields.io/badge/lang-en-blue.svg)](README.md) [![de](https://img.shields.io/badge/lang-de-red.svg)](README.de.md) [![PlatformIO CI](https://github.com/vnau/FritzGate/actions/workflows/platformio.yml/badge.svg)](https://github.com/vnau/FritzGate/actions/workflows/platformio.yml) [![Frontend CI](https://github.com/vnau/FritzGate/actions/workflows/deploy.yml/badge.svg)](https://github.com/vnau/FritzGate/actions/workflows/deploy.yml)
+[![en](https://img.shields.io/badge/lang-en-blue.svg)](README.md) [![de](https://img.shields.io/badge/lang-de-red.svg)](README.de.md) [![PlatformIO CI](https://github.com/elebree/fritzgate/actions/workflows/platformio.yml/badge.svg)](https://github.com/elebree/fritzgate/actions/workflows/platformio.yml) [![Frontend CI](https://github.com/elebree/fritzgate/actions/workflows/deploy.yml/badge.svg)](https://github.com/elebree/fritzgate/actions/workflows/deploy.yml)
 
 **FritzGate** transforms your **Ai Thinker board** into a smart thermostat controller. This project enables seamless control of thermostats connected to a **FRITZ!Box** (`FRITZ!DECT 301` and `FRITZ!DECT 302`), integrating for precise temperature control any of 70+ temperature sensors from leading vendors such as Govee, Xiaomi, Shelly, Ruuvi, Inkbird, SwitchBot, and ThermoPro.
-[![FritzGate screenshot](docs/FritzGate_Screenshot.svg)](https://vnau.github.io/FritzGate/)
+[![FritzGate screenshot](docs/FritzGate_Screenshot.svg)](https://elebree.github.io/fritzgate/)
 
 ## Demo
 
-View the online demo [here](https://vnau.github.io/FritzGate/).
+View the online demo [here](https://elebree.github.io/fritzgate/).
 
 ## Features
 
@@ -36,7 +36,7 @@ View the online demo [here](https://vnau.github.io/FritzGate/).
 1. Clone the repository to your local machine:
 
     ```bash
-    git clone https://github.com/vnau/FritzGate.git
+    git clone https://github.com/elebree/fritzgate.git
     ```
 
 2. Open the project in [PlatformIO](https://platformio.org/) or [Arduino IDE](https://www.arduino.cc/en/software), depending on your preference.

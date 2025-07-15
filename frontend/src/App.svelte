@@ -86,7 +86,7 @@
       <li>
         <a
           class="secondary"
-          href="https://github.com/vnau/FritzGate"
+          href="https://github.com/elebree/fritzgate"
           target="_blank"
           ><img
             src={github}

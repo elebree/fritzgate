@@ -2,16 +2,16 @@
 
 [![en](https://img.shields.io/badge/lang-en-blue.svg)](README.md)
 [![de](https://img.shields.io/badge/lang-de-red.svg)](README.de.md)
-[![PlatformIO CI](https://github.com/vnau/FritzGate/actions/workflows/platformio.yml/badge.svg)](https://github.com/vnau/FritzGate/actions/workflows/platformio.yml)
-[![Frontend CI](https://github.com/vnau/FritzGate/actions/workflows/deploy.yml/badge.svg)](https://github.com/vnau/FritzGate/actions/workflows/deploy.yml)
+[![PlatformIO CI](https://github.com/elebree/fritzgate/actions/workflows/platformio.yml/badge.svg)](https://github.com/elebree/fritzgate/actions/workflows/platformio.yml)
+[![Frontend CI](https://github.com/elebree/fritzgate/actions/workflows/deploy.yml/badge.svg)](https://github.com/elebree/fritzgate/actions/workflows/deploy.yml)
 
 FritzGate verwandelt Ihr **Ai Thinker Board** in einen intelligenten Thermostat-Controller. Dieses Projekt ermöglicht die nahtlose Steuerung von Thermostaten, die mit einer **FRITZ!Box** (FRITZ!DECT 301 und FRITZ!DECT 302) verbunden sind, und integriert über 70 Temperaturfühler von führenden Herstellern wie Govee, Xiaomi, Shelly, Ruuvi, Inkbird, SwitchBot und ThermoPro für eine präzise Temperaturregelung. Eine vollständige Liste finden Sie in der [Liste der Theengs-kompatiblen Geräte](https://decoder.theengs.io/devices/devices.html).
 
-[![FritzGate screenshot](docs/FritzGate_Screenshot.svg)](https://vnau.github.io/FritzGate/)
+[![FritzGate screenshot](docs/FritzGate_Screenshot.svg)](https://elebree.github.io/fritzgate/)
 
 ## Demo
 
-Eine Demo der FritzGate-Oberfläche ist [hier](https://vnau.github.io/FritzGate/) verfügbar.
+Eine Demo der FritzGate-Oberfläche ist [hier](https://elebree.github.io/fritzgate/) verfügbar.
 
 ## Funktionen
 
@@ -41,7 +41,7 @@ Eine Demo der FritzGate-Oberfläche ist [hier](https://vnau.github.io/FritzGate/
 1. Klonen Sie das Repository auf Ihren lokalen Computer:
 
     ```bash
-    git clone https://github.com/vnau/FritzGate.git
+    git clone https://github.com/elebree/fritzgate.git
     ```
 
 2. Öffnen Sie das Projekt in [PlatformIO](https://platformio.org/) oder der [Arduino IDE](https://www.arduino.cc/en/software), je nach Vorliebe.
