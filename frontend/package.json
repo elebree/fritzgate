@@ -19,7 +19,7 @@
     "cypress": "^14.3.1",
     "jsooner": "^1.0.8",
     "sass": "^1.86.3",
-    "svelte": "^5.28.2",
+    "svelte": "^5.37.0",
     "svelte-check": "^4.1.6",
     "svelte-gauge": "^2.0.1",
     "tslib": "^2.6.2",
