@@ -13,18 +13,18 @@
   },
   "devDependencies": {
     "@picocss/pico": "^2.0.6",
-    "@sveltejs/vite-plugin-svelte": "^5.0.3",
+    "@sveltejs/vite-plugin-svelte": "^6.2.0",
     "@tsconfig/svelte": "^5.0.2",
     "bootstrap": "^5.3.5",
     "cypress": "^14.3.1",
     "jsooner": "^1.0.8",
     "sass": "^1.86.3",
-    "svelte": "^5.28.2",
-    "svelte-check": "^4.1.6",
+    "svelte": "^5.39.4",
+    "svelte-check": "^4.3.1",
     "svelte-gauge": "^2.0.1",
     "tslib": "^2.6.2",
     "typescript": "^5.8.2",
-    "vite": "^6.3.2",
+    "vite": "^7.1.6",
     "vite-plugin-singlefile": "^2.1.0"
   }
 }
