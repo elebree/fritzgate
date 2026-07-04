@@ -16,7 +16,7 @@ jobs:
       - name: Install Node.js
         uses: actions/setup-node@v4
         with:
-          node-version-file: '.node-version'
+          node-version-file: 'frontend/.node-version'
           cache: pnpm
           cache-dependency-path: frontend/pnpm-lock.yaml
 
@@ -28,8 +28,9 @@ jobs:
           cache: true
 
       - name: Install dependencies
-        run: npm install
+        run: pnpm install --frozen-lockfile
 
+      - name: Build
         env:
           BASE_PATH: '/${{ github.event.repository.name }}'
         run: |
