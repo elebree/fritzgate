@@ -1,4 +1,5 @@
 #include "GoveeSensorsScanner.h"
+#include "../logging.h"
 #include <BLEDevice.h>
 #include <HardwareSerial.h>
 
@@ -101,7 +102,7 @@ public:
             //sensorData.id = advertisedDevice.getName();
             sensorData.name = "Govee " + sensorData.model + " " + sensorData.serial;
             sensorData.rssi = advertisedDevice.getRSSI();
-            Serial.printf("%s %s %s\r\n", sensorData.id.c_str(), sensorData.name.c_str(), sensorData.data.c_str());
+            LOG_DEVICEF("Govee device: %s %s %s", sensorData.id.c_str(), sensorData.name.c_str(), sensorData.data.c_str());
             m_pCallback->onResult(&sensorData);
         }
     }

@@ -6,6 +6,7 @@
 #include "./src/bluetooth/SensorsScanner.h"
 #include "./src/bluetooth/GoveeSensorsScanner.h"
 #include "./src/bluetooth/TheengsSensorsScanner.h"
+#include "./src/logging.h"
 
 #include <EEPROM.h>
 #include <esp_http_server.h>
@@ -247,22 +248,24 @@ bool syncFritzBox()
         //  auto refTemperature = (int)iter->referenceSensor->temperature; // use realtime temp
         auto refTemperature = (int)(referenceSensor->temperatureAvg * 10); // use average temp
         auto offset = refTemperature - (int)iter->temperature;
-        Serial.printf("Offset for %s: %g\r\n", iter->name.c_str(), offset / 10.0);
-        // round(offset / 5.0)
+        // Serial.printf("Offset for %s: %g\r\n", iter->name.c_str(), offset / 10.0);
+        //  round(offset / 5.0)
         offset = ((offset + ((offset > 0) - (offset < 0)) * 5 / 2) / 5) * 5; // round to 0.5 grad
         offset = min(50, max(-50, offset));                                  // not more than 5 grad difference with ref sensor
 
         // update offset if it is changed and reference temperature not older than 5 minutes
-        if (offset != iter->offset && timestamp - referenceSensor->timestamp < 60 * 5)
+        if (offset != iter->offset && timestamp - referenceSensor->timestamp < 60 * 5) // not more than once every 5 minutes
         {
-          Serial.printf("Update offset for \"%s\" from %g to %g\r\n",
-                        iter->name.c_str(),
-                        iter->offset / 10.0,
-                        offset / 10.0);
+          LOG_INFOF("Updating offset for \"%s\": %g -> %g",
+                    iter->name.c_str(),
+                    iter->offset / 10.0,
+                    offset / 10.0);
           iter->offset = offset;
           iter->offsetTimestamp = ntpClient.getEpochTime();
 
+          LOG_BEGIN(LOG_COLOR_HTTP);
           FritzThermostat::printPostBody(Serial, *iter, fritzSession.sid().c_str());
+          LOG_ENDLN();
 
           fritzSession.post_thermostat_state(*iter);
           updates = true;
@@ -292,13 +295,13 @@ bool syncFritzBox()
 
 void feedWatchdog()
 {
-  Serial.println("Resetting watchdog...");
+  LOG_INFO("Watchdog reset");
   esp_task_wdt_reset();
 }
 
 void setupWatchdog()
 {
-  Serial.println("Configuring watchdog...");
+  LOG_INFO("Watchdog setup");
   esp_task_wdt_init(WATCHDOG_TIMEOUT, true); // enable panic so ESP32 restarts
   esp_task_wdt_add(NULL);                    // add current thread to WDT watch
 }
@@ -308,24 +311,27 @@ void setupWatchdog()
  */
 void setupWIFI()
 {
-  Serial.println("Configuring WIFI...");
+  LOG_INFO("WiFi setup");
   WiFi.mode(WIFI_MODE_NULL);
   WiFi.setHostname(DEVICE_HOSTNAME);
   WiFi.mode(WIFI_STA);
   WiFi.config(INADDR_NONE, INADDR_NONE, INADDR_NONE, INADDR_NONE);
   WiFi.begin(config.wifi_ssid, config.wifi_pass);
   WiFi.setSleep(WIFI_PS_MIN_MODEM);
-  Serial.printf("Connecting to '%s'", config.wifi_ssid);
+  LOG_BEGIN(LOG_COLOR_INFO);
+  Serial.printf("WiFi connecting: %s", config.wifi_ssid);
+  LOG_END();
   for (int i = 0; WiFi.status() != WL_CONNECTED; i++)
   {
     enableLed(i % 2);
     delay(500);
-    Serial.print(".");
+    LOG_INLINE(LOG_COLOR_INFO, ".");
   }
   enableLed(false);
-  Serial.printf("\r\nWifi connected, available at 'http://");
+  LOG_BEGIN(LOG_COLOR_SUCCESS);
+  Serial.printf("\r\nWiFi ready: http://");
   Serial.print(WiFi.localIP());
-  Serial.println("'");
+  LOG_ENDLN();
 }
 
 /**
@@ -395,7 +401,7 @@ void setupConfig()
 {
   while (!storage.begin(sizeof(Config)))
   {
-    Serial.println("Failed to initialise EEPROM");
+    LOG_ERROR("EEPROM init failed");
   }
 
   storage.get(0, config);
@@ -403,7 +409,7 @@ void setupConfig()
   bool signatureMismatch = config.signature != defaultConfig.signature;
   if (signatureMismatch)
   {
-    Serial.printf("Signature mismatch: %x whjile expected %x\r\n", config.signature, defaultConfig.signature);
+    LOG_WARNINGF("Config signature mismatch: %x != %x", config.signature, defaultConfig.signature);
   }
 
   config.signature = defaultConfig.signature;
@@ -418,7 +424,7 @@ void setupConfig()
 
   if (signatureMismatch || (defaultConfig.sensors_bindings[0][0][0] != 0))
   {
-    Serial.println("Reset sensors bindings");
+    LOG_WARNING("Sensor bindings reset");
     memcpy(config.sensors_bindings, defaultConfig.sensors_bindings, sizeof(defaultConfig.sensors_bindings));
   }
 
@@ -431,7 +437,7 @@ void setupConfig()
 void setup()
 {
   Serial.begin(115200);
-  Serial.println("Starting Arduino application...");
+  LOG_SUCCESS("FritzGate starting");
 
   setupWatchdog();
   setupConfig();
@@ -522,7 +528,7 @@ void loop()
         if (c == '\n' && currentLineIsBlank)
         {
           linebuf[lineIndex - 1] = 0;
-          Serial.println(linebuf);
+          LOG_HTTPF("HTTP request: %s", linebuf);
 
           if (startsWith(linebuf, "GET /api/status"))
           {
@@ -600,7 +606,7 @@ void loop()
           }
           else if (startsWith(linebuf, "GET /api/") || startsWith(linebuf, "POST /api/") || startsWith(linebuf, "GET /favicon.ico"))
           {
-            writeHttpStatus(client, 404, "Not found");
+            writeHttpStatus(client, 404, "Not Found");
             client.println();
             client.flush();
             break;

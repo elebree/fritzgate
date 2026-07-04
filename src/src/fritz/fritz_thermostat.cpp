@@ -1,4 +1,5 @@
 #include "fritz_thermostat.h"
+#include "../logging.h"
 #include <ArduinoJson.h>
 #include <map>
 #include <StreamString.h>
@@ -111,7 +112,7 @@ bool FritzThermostat::parseDevices(HTTPClient &http, std::vector<Thermostat> &th
     // if (!find(stream, "\"devices\":")) {
     if (!stream.find("\"devices\":"))
     {
-        Serial.printf("devices[] block not found");
+        LOG_ERROR("FRITZ devices block missing");
         return false;
     }
 
@@ -126,8 +127,7 @@ bool FritzThermostat::parseDevices(HTTPClient &http, std::vector<Thermostat> &th
         // Test if parsing succeeds.
         if (error)
         {
-            Serial.printf("deserializeJson() failed: ");
-            Serial.printf(error.c_str());
+            LOG_ERRORF("FRITZ devices JSON failed: %s", error.c_str());
             return false;
         }
 

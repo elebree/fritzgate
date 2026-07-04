@@ -1,6 +1,7 @@
 #include "crypto.h"
 #include "fritz_session.h"
 #include "fritz_thermostat.h"
+#include "../logging.h"
 #include <HTTPClient.h>
 #include <vector>
 #include <WiFi.h>
@@ -12,14 +13,14 @@ std::string getTagValue(const char *payload, const char *startTag, const char *e
   char *startPos = strstr(payload, startTag);
   if (startPos == NULL)
   {
-    Serial.printf("%s  tag not found\r\n", startTag);
+    LOG_ERRORF("Missing tag: %s", startTag);
     return "";
   }
   startPos += strlen(startTag);
   char *stopPos = strstr(startPos, endTag);
   if (stopPos == NULL)
   {
-    Serial.printf("%s closing  tag not found\r\n", endTag);
+    LOG_ERRORF("Missing closing tag: %s", endTag);
     return "";
   }
   return std::string(startPos, stopPos);
@@ -75,7 +76,7 @@ bool Session::ensure_connection()
 {
   if (mHost == "" || mUsername == "" || mPassword == "")
   {
-    Serial.println("Error: Failed to connect FritzBox: no credentials.");
+    LOG_ERROR("FRITZ!Box credentials missing");
     return false;
   }
 
@@ -86,13 +87,13 @@ bool Session::ensure_connection()
 
   if (!query_challenge())
   {
-    Serial.println("Error: Failed to query_challenge() for FritzBox connection.");
+    LOG_ERROR("FRITZ!Box challenge failed");
     return false;
   }
 
   if (!query_session_id())
   {
-    Serial.println("Error: Failed to query_sessionID() for FritzBox connection.");
+    LOG_ERROR("FRITZ!Box session failed");
     return false;
   }
 
@@ -111,7 +112,7 @@ bool Session::query_challenge()
   if (httpCode > 0)
   {
     // HTTP header has been send and Server response header has been handled
-    Serial.printf("[HTTP] GET... code: %d\n", httpCode);
+    LOG_HTTPF("HTTP GET %s: %d", loginPath, httpCode);
 
     // file found at server
     if (httpCode == HTTP_CODE_OK)
@@ -121,7 +122,7 @@ bool Session::query_challenge()
   }
   else
   {
-    Serial.printf("[HTTP] GET... failed, error: %s\n", http.errorToString(httpCode).c_str());
+    LOG_ERRORF("HTTP GET failed: %s", http.errorToString(httpCode).c_str());
     return false;
   }
 
@@ -140,7 +141,7 @@ int Session::post_request(HTTPClient &http, const char *path, const char *post_t
   http.begin(client, mHost.c_str(), mPort, path, false); // Initiate HTTP connection
   http.addHeader("Content-Type", "application/x-www-form-urlencoded");
   int httpCode = http.POST((uint8_t *)post_data, strlen(post_data));
-  Serial.println(post_data);
+  LOG_HTTP("HTTP POST body ready");
   String payload;
   if (httpCode > 0)
   {
@@ -150,12 +151,12 @@ int Session::post_request(HTTPClient &http, const char *path, const char *post_t
       // update session after successful request
       mSessionExpiration = std::time(nullptr) + mTimeTillLogout;
     }
-    Serial.printf("[HTTP] POST %s... code: %d\n", path, httpCode);
+    LOG_HTTPF("HTTP POST %s: %d", path, httpCode);
   }
   else
   {
     reset_session();
-    Serial.printf("[HTTP] POST... failed, error: %s\n", http.errorToString(httpCode).c_str());
+    LOG_ERRORF("HTTP POST failed: %s", http.errorToString(httpCode).c_str());
   }
   return httpCode;
 }
@@ -178,7 +179,7 @@ String Session::query_data(const char *path, const char *post_template)
 // Query devices and populate vector with thermostats
 bool Session::query_devices(std::vector<Thermostat> &thermostats)
 {
-  Serial.println("query_devices()");
+  LOG_INFO("FRITZ devices query");
   HTTPClient http;
   // auto httpCode = post_request(http, "/myfritz/api/data.lua", "sid=%s&c=smarthome&a=getDevicesAndGroups");
   auto httpCode = post_request(http, "/data.lua", "xhr=1&sid=%s&lang=en&page=sh_control&xhrId=all");
@@ -196,7 +197,7 @@ bool Session::query_devices(std::vector<Thermostat> &thermostats)
 // Query Session ID for authentication
 bool Session::query_session_id()
 {
-  Serial.println("query_sessionID()");
+  LOG_INFO("FRITZ session query");
   std::string response = calculate_pbkdf2_response(mChallenge.c_str(), mPassword.c_str());
 
   // Set POST Data
@@ -210,7 +211,7 @@ bool Session::query_session_id()
   if (httpCode > 0)
   {
     // HTTP header has been sent and Server response header has been handled
-    Serial.printf("[HTTP] POST... code: %d\n", httpCode);
+    LOG_HTTPF("HTTP POST %s: %d", loginPath, httpCode);
 
     // file found at server
     if (httpCode == HTTP_CODE_OK)
@@ -220,7 +221,7 @@ bool Session::query_session_id()
   }
   else
   {
-    Serial.printf("[HTTP] POST... failed, error: %s\n", http.errorToString(httpCode).c_str());
+    LOG_ERRORF("HTTP POST failed: %s", http.errorToString(httpCode).c_str());
     return false;
   }
   http.end();
@@ -228,17 +229,17 @@ bool Session::query_session_id()
   mSID = getTagValue(payload.c_str(), "<SID>", "</SID>");
   if (mSID.empty())
   {
-    Serial.println("XML response <SID> is empty!");
+    LOG_ERROR("FRITZ SID missing");
     return false;
   }
 
   if (mSID == "0000000000000000")
   {
-    Serial.println("Username or password wrong!!");
+    LOG_ERROR("FRITZ credentials rejected");
     return false;
   }
 
-  Serial.println("Successfull authentication!");
+  LOG_SUCCESS("FRITZ authenticated");
   return true;
 }
 
@@ -255,7 +256,7 @@ bool Session::post_thermostat_state(Thermostat &thermostat)
   if (httpCode > 0)
   {
     // HTTP header has been sent and Server response header has been handled
-    Serial.printf("[HTTP] POST... code: %d\n", httpCode);
+    LOG_HTTPF("HTTP POST /data.lua: %d", httpCode);
 
     // file found at server
     if (httpCode == HTTP_CODE_OK)
@@ -266,7 +267,7 @@ bool Session::post_thermostat_state(Thermostat &thermostat)
   }
   else
   {
-    Serial.printf("[HTTP] POST... failed, error: %s\n", http.errorToString(httpCode).c_str());
+    LOG_ERRORF("HTTP POST failed: %s", http.errorToString(httpCode).c_str());
     return false;
   }
   http.end();

@@ -1,6 +1,8 @@
 #include <ESP32QRCodeReader.h>
 #include <string>
 
+#include "../logging.h"
+
 ESP32QRCodeReader reader(CAMERA_MODEL_AI_THINKER);
 boolean qrDone = false;
 std::string qrCodeText = "";
@@ -13,7 +15,7 @@ void onQrCodeTask(void *pvParameters)
   {
     if (reader.receiveQrCode(&qrCodeData, 100))
     {
-      Serial.println("Found QRCode");
+      LOG_SUCCESS("QR code found");
       if (qrCodeData.valid)
       {
         qrCodeText = (const char *)qrCodeData.payload;
@@ -24,12 +26,12 @@ void onQrCodeTask(void *pvParameters)
         }
         else
         {
-          Serial.printf("Non-WiFi payload: %s\r\n", (const char *)qrCodeData.payload);
+          LOG_WARNINGF("QR ignored: not WiFi (%s)", (const char *)qrCodeData.payload);
         }
       }
       else
       {
-        Serial.printf("Invalid payload: %s\r\n", (const char *)qrCodeData.payload);
+        LOG_ERRORF("QR invalid: %s", (const char *)qrCodeData.payload);
       }
     }
     vTaskDelay(100 / portTICK_PERIOD_MS);
@@ -40,11 +42,11 @@ std::string ReadWifiQrCode()
 {
   reader.setup();
 
-  Serial.println("Setup QRCode Reader");
+  LOG_INFO("QR reader setup");
 
   reader.beginOnCore(1);
 
-  Serial.println("Begin on Core 1");
+  LOG_INFO("QR reader started on core 1");
 
   xTaskCreate(onQrCodeTask, "onQrCode", 4 * 1024, NULL, 4, NULL);
 

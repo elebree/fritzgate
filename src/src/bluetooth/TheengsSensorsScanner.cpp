@@ -2,6 +2,7 @@
 #include <decoder.h>
 
 #include "TheengsSensorsScanner.h"
+#include "../logging.h"
 
 class TheengsSensorsAdvertisedDeviceCallbacks : public NimBLEAdvertisedDeviceCallbacks
 {
@@ -64,9 +65,10 @@ public:
         {
             if (BLEdata.containsKey("id") && BLEdata.containsKey("tempc"))
             {
-                Serial.print("TheengsDecoder found a device: ");
+                LOG_BEGIN(LOG_COLOR_DEVICE);
+                Serial.print("Theengs device: ");
                 serializeJson(BLEdata, Serial);
-                Serial.println("");
+                LOG_ENDLN();
 
                 Sensor sensorData;
                 auto brand = BLEdata.containsKey("brand") ? BLEdata["brand"].as<std::string>() : "";
