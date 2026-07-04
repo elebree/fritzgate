@@ -254,8 +254,16 @@ bool syncFritzBox()
         offset = min(50, max(-50, offset));                                  // not more than 5 grad difference with ref sensor
 
         // update offset if it is changed and reference temperature not older than 5 minutes
-        if (offset != iter->offset && timestamp - referenceSensor->timestamp < 60 * 5) // not more than once every 5 minutes
+        if (offset != iter->offset && timestamp - referenceSensor->timestamp < 60 * 5) // reference temperature is not older than 5 minutes
         {
+          if (iter->targetTemperature == 0)
+          {
+            LOG_WARNINGF("Skip offset for \"%s\" %g -> %g: heating off",
+                         iter->name.c_str(),
+                         iter->offset / 10.0,
+                         offset / 10.0);
+            continue;
+          }
           LOG_INFOF("Updating offset for \"%s\": %g -> %g",
                     iter->name.c_str(),
                     iter->offset / 10.0,
