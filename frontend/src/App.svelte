@@ -12,7 +12,7 @@
   let state: StatusData | undefined = undefined;
   let page: string = location.hash;
   let busy = false;
-  let timer: NodeJS.Timeout;
+  let timer: ReturnType<typeof setTimeout>;
 
   function routeChange() {
     console.log(location.hash);
