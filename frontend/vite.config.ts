@@ -1,49 +1,52 @@
 import { svelte } from '@sveltejs/vite-plugin-svelte';
-import { createReadStream, createWriteStream } from 'fs';
-import { Transform } from 'stream';
+import { readFile, writeFile } from 'fs/promises';
+import { dirname, resolve } from 'path';
+import { fileURLToPath } from 'url';
 import { defineConfig } from 'vite';
-import { viteSingleFile } from "vite-plugin-singlefile";
-import { createGzip } from 'zlib';
+import { viteSingleFile } from 'vite-plugin-singlefile';
+import { gzipSync } from 'zlib';
 
-function createToHex(
+const configDir = dirname(fileURLToPath(import.meta.url));
+
+function toHex(
+  data: Buffer,
   linePrefix: string = '    ',
   columns: number = 16,
   delimiter: string = ',',
   numberPrefix: string = '0x'
-): Transform {
-  let index = 0;
-  return new Transform({
-    transform: (chunk: Buffer, encoding: string, done: (error?: Error, data?: any) => void) => {
-      var result = '';
-      for (let i = 0; i < chunk.length; i++) {
-        result += `${index > 0 ? delimiter : ''}${index % columns ? ' ' : (index == 0 ? '' : '\r\n') + linePrefix}${numberPrefix}${chunk[i].toString(16).padStart(2, '0')}`;
-        index++;
-      }
-      done(null, result);
+): string {
+  let result = '';
+  for (let i = 0; i < data.length; i++) {
+    result += `${i > 0 ? delimiter : ''}${i % columns ? ' ' : (i == 0 ? '' : '\r\n') + linePrefix}${numberPrefix}${data[i].toString(16).padStart(2, '0')}`;
+  }
+  return result;
+}
+
+function indexHtmlHeaderPlugin() {
+  return {
+    name: 'index-html-header',
+    closeBundle: async (): Promise<void> => {
+      const indexHtml = await readFile(resolve(configDir, 'dist/index.html'));
+      const compressedIndexHtml = gzipSync(indexHtml);
+      const header = [
+        '// This file was generated automatically, do not replace content.\r\n\r\n',
+        '#pragma once\r\n\r\n',
+        '#define index_html_length sizeof(index_html)\r\n',
+        'static const byte index_html[] PROGMEM = {\r\n',
+        toHex(compressedIndexHtml),
+        '\r\n};\r\n',
+      ].join('');
+
+      await writeFile(resolve(configDir, '../src/index_html.h'), header);
     }
-  });
+  };
 }
 
 // https://vitejs.dev/config/
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [
     svelte(),
     viteSingleFile(),
-    {
-      name: 'postbuild-commands', // the name of your custom plugin. Could be anything.
-      closeBundle: async (): Promise<void> => {
-        const out = createWriteStream('../src/index_html.h');
-        //out.write(`// array size is ${fileData.length / 2}\r\n`)
-        out.write('// This file was generated automatically, do not replace content.\r\n\r\n');
-        out.write('#pragma once\r\n\r\n');
-        out.write('#define index_html_length sizeof(index_html)\r\n');
-        out.write('static const byte index_html[] PROGMEM = {\r\n');
-        const reads = createReadStream('./dist/index.html');
-        const readstr = reads.pipe(createGzip()).pipe(createToHex()).on('end', () => {
-          out.write('\r\n};\r\n');
-        }).pipe(out);
-        //await postBuildCommands() // run during closeBundle hook. https://rollupjs.org/guide/en/#closebundle
-      }
-    },
+    mode === 'firmware' ? indexHtmlHeaderPlugin() : undefined,
   ],
-})
+}));

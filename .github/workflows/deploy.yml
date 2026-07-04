@@ -12,20 +12,19 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      # See https://github.com/actions/setup-node
-      - name: Install Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version-file: 'frontend/.node-version'
-          cache: pnpm
-          cache-dependency-path: frontend/pnpm-lock.yaml
-
       # See https://github.com/pnpm/action-setup
       - name: Install pnpm
         uses: pnpm/action-setup@v4
         with:
           version: 10
-          cache: true
+
+      # See https://github.com/actions/setup-node
+      - name: Install Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: 'frontend/.node-version'
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -37,7 +36,7 @@ jobs:
           pnpm run build
 
       - name: Upload Artifacts
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: 'frontend/dist/'
 
@@ -56,4 +55,4 @@ jobs:
     steps:
       - name: Deploy
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5

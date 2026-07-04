@@ -6,6 +6,7 @@
   "scripts": {
     "serve": "vite",
     "build": "vite build",
+    "build:firmware": "vite build --mode firmware",
     "preview": "vite preview",
     "check": "svelte-check --tsconfig ./tsconfig.json",
     "cy:open": "npx cypress open",
