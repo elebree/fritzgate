@@ -17,7 +17,7 @@
     "@sveltejs/vite-plugin-svelte": "^7.1.2",
     "@tsconfig/svelte": "^5.0.8",
     "bootstrap": "^5.3.8",
-    "cypress": "^15.18.0",
+    "cypress": "^15.18.1",
     "sass": "^1.101.0",
     "svelte": "^5.56.4",
     "svelte-check": "^4.7.1",
