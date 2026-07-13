@@ -14,7 +14,7 @@
   },
   "devDependencies": {
     "@picocss/pico": "^2.1.1",
-    "@sveltejs/vite-plugin-svelte": "^7.1.2",
+    "@sveltejs/vite-plugin-svelte": "^7.2.0",
     "@tsconfig/svelte": "^5.0.8",
     "bootstrap": "^5.3.8",
     "cypress": "^15.18.0",
