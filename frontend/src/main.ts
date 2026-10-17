@@ -4,7 +4,7 @@ import App from './App.svelte';
 import { DemoApiService } from './services/demoApiService';
 import { FritzGateApiService } from './services/fritzGateApiService';
 
-const isDemo = window.location.hostname.endsWith(".github.io");
+const isDemo = window.location.hostname.endsWith('.github.io') || window.location.hostname === 'fritzgate.elebree.com';
 const apiService = isDemo
   ? new DemoApiService()
   : new FritzGateApiService()
