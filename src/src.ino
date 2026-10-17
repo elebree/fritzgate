@@ -56,7 +56,7 @@ struct Config
   // Wifi network password
   char wifi_pass[64] = {};
 
-  // IP address of your router. For most FRITZ!Boxes, this is "192.168.179.1"
+  // IP address of your router. For most FRITZ!Boxes, this is "192.168.178.1"
   char fritz_host[32] = DEFAULT_FRITZBOX_HOST;
 
   // Username for FritzBox account. Default is "admin" if no custom account was created.

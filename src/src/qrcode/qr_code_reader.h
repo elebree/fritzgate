@@ -3,9 +3,32 @@
 
 #include "../logging.h"
 
+// Minimum time each camera orientation is tried before mirroring again
+#define QR_MIRROR_TOGGLE_INTERVAL_MS 2000
+
 ESP32QRCodeReader reader(CAMERA_MODEL_AI_THINKER);
 boolean qrDone = false;
 std::string qrCodeText = "";
+
+/**
+ * Mirror the camera image horizontally.
+ * The quirc version bundled with ESP32QRCodeReader can't decode mirrored codes
+ * (it reports "ECC failure"), and some camera modules deliver a mirrored image,
+ * so after a failed decode the next frames are tried the other way round.
+ */
+void toggleCameraMirror()
+{
+  static unsigned long lastToggleMillis = 0;
+  if (lastToggleMillis != 0 && millis() - lastToggleMillis < QR_MIRROR_TOGGLE_INTERVAL_MS)
+    return;
+  lastToggleMillis = millis();
+
+  sensor_t *sensor = esp_camera_sensor_get();
+  if (sensor == NULL)
+    return;
+  sensor->set_hmirror(sensor, !sensor->status.hmirror);
+  LOG_INFOF("QR camera mirror: %s", sensor->status.hmirror ? "on" : "off");
+}
 
 void onQrCodeTask(void *pvParameters)
 {
@@ -32,6 +55,7 @@ void onQrCodeTask(void *pvParameters)
       else
       {
         LOG_ERRORF("QR invalid: %s", (const char *)qrCodeData.payload);
+        toggleCameraMirror();
       }
     }
     vTaskDelay(100 / portTICK_PERIOD_MS);
