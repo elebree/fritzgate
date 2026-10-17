@@ -57,26 +57,30 @@ void FritzThermostat::printPostBody(Stream &stream, Thermostat &info, const char
                       iter->enabled() ? 1 : 0, iter->daysOfWeekMask());
     }
 
+    // the form hour is one more than the hour in the device JSON (form hour 1 is reported as "00:00:00")
     const char *holiday = "&Holiday";
-    for (int i = 1; i <= 4; i++)
+    int enabledHolidays = 0;
+    for (int i = 1; i <= THERMOSTAT_HOLIDAYS; i++)
     {
-        stream.printf("%s%dStartDay=11", holiday, i);
-        stream.printf("%s%dStartMonth=12", holiday, i);
-        stream.printf("%s%dStartHour=1", holiday, i);
-        stream.printf("%s%dEndDay=25", holiday, i);
-        stream.printf("%s%dEndMonth=12", holiday, i);
-        stream.printf("%s%dEndHour=1", holiday, i);
-        stream.printf("%s%dEnabled=0", holiday, i);
+        const YearlyPeriod &period = info.holidays[i - 1];
+        stream.printf("%s%dStartDay=%d", holiday, i, period.startDay);
+        stream.printf("%s%dStartMonth=%d", holiday, i, period.startMonth);
+        stream.printf("%s%dStartHour=%d", holiday, i, period.startHour + 1);
+        stream.printf("%s%dEndDay=%d", holiday, i, period.endDay);
+        stream.printf("%s%dEndMonth=%d", holiday, i, period.endMonth);
+        stream.printf("%s%dEndHour=%d", holiday, i, period.endHour + 1);
+        stream.printf("%s%dEnabled=%d", holiday, i, period.enabled ? 1 : 0);
         stream.printf("%s%dID=%d", holiday, i, i);
+        enabledHolidays += period.enabled ? 1 : 0;
     }
-    stream.printf("%sEnabledCount=0", holiday);
+    stream.printf("%sEnabledCount=%d", holiday, enabledHolidays);
 
     const char *summer = "&Summer";
-    stream.printf("%sStartDay=1", summer);
-    stream.printf("%sStartMonth=06", summer);
-    stream.printf("%sEndDay=31", summer);
-    stream.printf("%sEndMonth=08", summer);
-    stream.printf("%sEnabled=1", summer);
+    stream.printf("%sStartDay=%d", summer, info.summer.startDay);
+    stream.printf("%sStartMonth=%02d", summer, info.summer.startMonth);
+    stream.printf("%sEndDay=%d", summer, info.summer.endDay);
+    stream.printf("%sEndMonth=%02d", summer, info.summer.endMonth);
+    stream.printf("%sEnabled=%d", summer, info.summer.enabled ? 1 : 0);
 
     const char *windowOpen = "&WindowOpen";
     stream.printf("%sTrigger=%d", windowOpen, info.windowOpenTrigger + 3);
@@ -89,6 +93,26 @@ void FritzThermostat::printPostBody(Stream &stream, Thermostat &info, const char
     stream.printf("&apply=");
     stream.printf("&lang=en");
     stream.printf("&page=home_auto_hkr_edit");
+}
+
+// Read a yearly period from a REPETITIVE schedule action ("YYYY-MM-DD" dates, "HH:MM:SS" times)
+static void parseYearlyPeriod(JsonObject schedule, JsonObject action, YearlyPeriod &period)
+{
+    JsonObject timeSetting = action["timeSetting"];
+    int month, day;
+    if (sscanf(timeSetting["startDate"] | "", "%*d-%d-%d", &month, &day) == 2)
+    {
+        period.startMonth = month;
+        period.startDay = day;
+    }
+    if (sscanf(timeSetting["endDate"] | "", "%*d-%d-%d", &month, &day) == 2)
+    {
+        period.endMonth = month;
+        period.endDay = day;
+    }
+    period.startHour = atoi(timeSetting["startTime"] | "0");
+    period.endHour = atoi(timeSetting["endTime"] | "0");
+    period.enabled = schedule["isEnabled"].as<bool>() && action["isEnabled"].as<bool>();
 }
 
 String FritzThermostat::getPostBody(Thermostat &info, const char *sid)
@@ -204,6 +228,9 @@ bool FritzThermostat::parseDevices(HTTPClient &http, std::vector<Thermostat> &th
                         info->temperature = (*sensorSkill)["currentInCelsius"].as<double>() * 10 - info->offset;
                     }
 
+                    // rebuild the timetable from scratch, otherwise switch points removed in FRITZ!Box survive in the
+                    // cached thermostat and are posted back with the next offset update
+                    info->weeklyTimetable.clear();
                     JsonArray timeSchedules = (*skill)["timeControl"]["timeSchedules"];
                     for (JsonArray::iterator timeSchedule = timeSchedules.begin(); timeSchedule != timeSchedules.end(); timeSchedule += 1)
                     {
@@ -234,6 +261,21 @@ bool FritzThermostat::parseDevices(HTTPClient &http, std::vector<Thermostat> &th
                                     action1->addDayOfWeek(dayOfWeek);
                                 }
                             }
+                        }
+                        else if ((*timeSchedule)["name"] == "HOLIDAYS")
+                        {
+                            JsonArray actions = (*timeSchedule)["actions"];
+                            for (int h = 0; h < THERMOSTAT_HOLIDAYS; h++)
+                            {
+                                if (h < actions.size())
+                                    parseYearlyPeriod(*timeSchedule, actions[h], info->holidays[h]);
+                                else
+                                    info->holidays[h].enabled = false;
+                            }
+                        }
+                        else if ((*timeSchedule)["name"] == "SUMMER_TIME")
+                        {
+                            parseYearlyPeriod(*timeSchedule, (*timeSchedule)["actions"][0], info->summer);
                         }
                     }
                 }
