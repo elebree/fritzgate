@@ -26,6 +26,21 @@ public:
     uint8_t firstDay() const;
 };
 
+// number of holiday periods a FRITZ!DECT thermostat supports
+#define THERMOSTAT_HOLIDAYS 4
+
+// yearly recurring period (holiday or summer) as reported by FRITZ!Box
+struct YearlyPeriod
+{
+    uint8_t startDay;
+    uint8_t startMonth;
+    uint8_t startHour;
+    uint8_t endDay;
+    uint8_t endMonth;
+    uint8_t endHour;
+    bool enabled;
+};
+
 class Thermostat : public Sensor
 {
 public:
@@ -40,6 +55,13 @@ public:
     int32_t offset = 0;
     unsigned long offsetTimestamp;
     std::vector<PresetAction> weeklyTimetable;
+    // FRITZ!Box defaults, posted only if the device JSON has no holiday / summer schedule
+    YearlyPeriod holidays[THERMOSTAT_HOLIDAYS] = {
+        {11, 12, 0, 25, 12, 0, false},
+        {11, 12, 0, 25, 12, 0, false},
+        {11, 12, 0, 25, 12, 0, false},
+        {11, 12, 0, 25, 12, 0, false}};
+    YearlyPeriod summer = {1, 6, 0, 31, 8, 0, true};
     std::string referenceSensor;
 
 protected:
