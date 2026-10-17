@@ -19,23 +19,55 @@
   import HumidityIcon from "./HumidityIcon.svelte";
   import SignalIcon from "./SignalIcon.svelte";
   import TemperatureIcon from "./TemperatureIcon.svelte";
+
+  let wrapper: HTMLDivElement;
+  let size = 0;
+  const canvas = document.createElement("canvas").getContext("2d");
+
+  // Scale the rings and the curved labels with the gauge, so narrow screens keep the desktop proportions
+  $: stroke = Math.min(10, Math.max(6, Math.round(size / 31)));
+  $: labelFontSize = Math.min(20, Math.max(10, size / 16));
+  // svelte-gauge draws the labels 14px inside the edge, each centered in its own third of the circle
+  $: labelWidth = (2 * Math.PI * (size / 2 - 14)) / 3 - labelFontSize;
+  $: labelFont = wrapper
+    ? `${labelFontSize}px ${getComputedStyle(wrapper).fontFamily}`
+    : "";
+  $: labels = [titleLeft, title, titleRight].map((label) =>
+    fitLabel(label, labelWidth, labelFont)
+  );
+
+  // Shorten a label with an ellipsis so it doesn't run into the neighbouring one
+  function fitLabel(label: string, width: number, font: string) {
+    if (!canvas || !font || width <= 0) return label;
+    canvas.font = font;
+    if (canvas.measureText(label).width <= width) return label;
+    let text = label;
+    while (text && canvas.measureText(text.trimEnd() + "…").width > width) {
+      text = text.slice(0, -1);
+    }
+    return text.trimEnd() + "…";
+  }
 </script>
 
-<div style="width: 100%;aspect-ratio: 1/1">
+<div
+  bind:this={wrapper}
+  bind:clientWidth={size}
+  style="width: 100%;aspect-ratio: 1/1;--label-font-size: {labelFontSize}px"
+>
   <Gauge
     class="indicator-gauge"
     bind:value={temperature}
     start={10}
     stop={30}
-    stroke={10}
+    {stroke}
     labelsCentered={true}
-    labels={[titleLeft, title, titleRight]}
+    {labels}
     segments={[[temperature, targetTemperature ?? temperature]]}
     --stroke-color="#f2c894"
   >
     <Gauge
       bind:value={humidity}
-      stroke={10}
+      {stroke}
       segments={[[40, 60]]}
       --stroke-color="#9fc0de"
     >
@@ -101,11 +133,21 @@
     transform: translate(-50%, -50%);
     position: absolute;
     display: grid;
+
+    :global(img) {
+      height: 0.45em;
+    }
   }
 
+  // Badges and icons scale with the inner gauge, so they keep clear of the readings on small screens
   .badge {
     opacity: 0.3;
     position: absolute;
+    font-size: calc(var(--gauge-radius) / 6.5);
+
+    :global(img) {
+      height: 1.2em;
+    }
   }
   .badge.top {
     left: 50%;
@@ -158,13 +200,7 @@
     bottom: 15%;
   }
 
-  :global(.indicator-gauge) {
-    :global(.titles-container) {
-      color: lightslategray;
-      font-size: 0.7em;
-      :global(:first-child) {
-        font-size: 1.5em;
-      }
-    }
+  :global(.indicator-gauge .gauge-labels) {
+    font-size: var(--label-font-size);
   }
 </style>
