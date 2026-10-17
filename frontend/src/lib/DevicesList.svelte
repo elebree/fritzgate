@@ -7,80 +7,111 @@
   export let api: ApiService;
 
   async function onReferenceSensorChange(
+    device: DeviceStatus,
     event: Event & { currentTarget: EventTarget & HTMLSelectElement }
   ) {
-    const sensorId = event.currentTarget.getAttribute("data-sensor");
-    const device = devices.find((dev) => dev.id === sensorId);
-
-    const response = await api.setBinding(device?.id, device?.referenceSensor);
+    const response = await api.setBinding(device.id, event.currentTarget.value);
     if (!response.ok) {
       // Handle
     }
   }
+
+  function formatTemperature(value: number | undefined) {
+    return value?.toLocaleString(undefined, {
+      minimumFractionDigits: 1,
+      maximumFractionDigits: 1,
+    });
+  }
 </script>
 
-<article class="devices-list">
-  {#each devices as device}
-    <details id={device.id}>
-      <summary class="secondary">
-        <div class="row">
-          <!-- <span>{name}</span> -->
-          <div class="col-4 col-sm-4 col-md-4 col-lg-6 col-xl-6">
-            <b>{device.name}</b>
+<div class="devices-list">
+  {#each devices as device (device.id)}
+    {@const reference = sensors?.find((sensor) => sensor.id === device.referenceSensor)}
+    <article>
+      <header>
+        <div class="title">
+          <div>
+            <strong>{device.name}</strong>
+            <small>{device.model} {device.serial}</small>
           </div>
-          <div class="col-8 col-sm-8 col-md-8 col-lg-6 col-xl-6">
-            <Indicators {device} />
-          </div>
+          {#if device.offset != null}
+            <small class="offset" title="Temperature offset set on the thermostat">
+              offset {device.offset > 0 ? "+" : ""}{formatTemperature(device.offset)}℃
+            </small>
+          {/if}
         </div>
+        <Indicators {device} />
+      </header>
 
-        {#if sensors}
-          <div class="row">
-            <div class="col-sm-4 col-md-4 col-lg-6 col-xl-6 p-0">
-              <select
-                bind:value={device.referenceSensor}
-                data-sensor={device.id}
-                on:change={onReferenceSensorChange}
-              >
-                <option value="" selected={device.referenceSensor === ""}
-                  >{device.model}
-                  {device.serial} ({device.temperature?.toLocaleString(
-                    undefined,
-                    {
-                      minimumFractionDigits: 1,
-                      maximumFractionDigits: 1,
-                    }
-                  )}℃)</option
-                >
-                {#each sensors as sensor}
-                  <option
-                    selected={sensor.id === device.referenceSensor}
-                    value={sensor.id}
-                    >{sensor.name} ({sensor.temperature?.toLocaleString(
-                      undefined,
-                      {
-                        minimumFractionDigits: 1,
-                        maximumFractionDigits: 1,
-                      }
-                    )}℃)</option
-                  >
-                {/each}
-                {#if device.referenceSensor && !sensors.find((sensor) => sensor.id == device.referenceSensor)}
-                  <option selected={true} value={device.referenceSensor}>
-                    {device.referenceSensor} (Unavailable)
-                  </option>
-                {/if}
-              </select>
-            </div>
-            <div class="col-sm-8 col-md-8 col-lg-6 col-xl-6">
-              {#each sensors as sensor}
-                {#if sensor.id === device.referenceSensor}
-                  <Indicators device={sensor} />
-                {/if}
-              {/each}
-            </div>
-          </div>
+      {#if sensors}
+        <label>
+          <small>Reference sensor</small>
+          <select
+            bind:value={device.referenceSensor}
+            on:change={(event) => onReferenceSensorChange(device, event)}
+          >
+            <option value="">
+              Built-in thermostat sensor ({formatTemperature(device.temperature)}℃)
+            </option>
+            {#each sensors as sensor (sensor.id)}
+              <option value={sensor.id}>
+                {sensor.name} ({formatTemperature(sensor.temperature)}℃)
+              </option>
+            {/each}
+            {#if device.referenceSensor && !reference}
+              <option value={device.referenceSensor}>
+                {device.referenceSensor} (unavailable)
+              </option>
+            {/if}
+          </select>
+        </label>
+        {#if reference}
+          <Indicators device={reference} />
         {/if}
-      </summary>
-    </details>
+      {/if}
+    </article>
   {/each}
-</article>
+</div>
+
+<style>
+  .devices-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 18rem), 1fr));
+    gap: var(--pico-spacing);
+  }
+
+  article {
+    margin: 0;
+  }
+
+  .title {
+    display: flex;
+    justify-content: space-between;
+    align-items: start;
+    gap: var(--pico-spacing);
+    margin-bottom: 0.75em;
+  }
+
+  .title strong,
+  .title small {
+    display: block;
+  }
+
+  small {
+    color: var(--pico-muted-color);
+  }
+
+  .offset {
+    white-space: nowrap;
+  }
+
+  label small {
+    display: block;
+    margin-bottom: 0.25em;
+  }
+
+  select {
+    margin-bottom: 0.5em;
+    font-size: 0.875em;
+  }
+</style>

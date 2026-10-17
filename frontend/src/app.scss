@@ -55,6 +55,10 @@
   text-decoration: line-through;
 }
 
+nav a[aria-current="page"] {
+  font-weight: 600;
+}
+
 .p-0 {
   padding: 0 !important;
 }

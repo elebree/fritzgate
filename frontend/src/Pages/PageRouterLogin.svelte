@@ -85,30 +85,39 @@
           on:submit|preventDefault={submitForm}
           autocomplete="off"
         >
-          <input
-            type="text"
-            name="ip"
-            placeholder="Router address (should be 192.168.179.1 or fritz.box for most FRITZ!Boxes)"
-            required
-            bind:value={host}
-            autocomplete="off"
-          />
-          <input
-            type="text"
-            name="login"
-            placeholder="FRITZ!Box username"
-            required
-            bind:value={user}
-            autocomplete="off"
-          />
-          <input
-            type="password"
-            name="pass"
-            placeholder="Password"
-            required
-            bind:value={pass}
-            autocomplete="off"
-          />
+          <label>
+            Router address
+            <input
+              type="text"
+              name="ip"
+              placeholder="fritz.box or 192.168.178.1"
+              required
+              bind:value={host}
+              autocomplete="off"
+            />
+          </label>
+          <label>
+            Username
+            <input
+              type="text"
+              name="login"
+              placeholder="FRITZ!Box username"
+              required
+              bind:value={user}
+              autocomplete="off"
+            />
+          </label>
+          <label>
+            Password
+            <input
+              type="password"
+              name="pass"
+              placeholder="FRITZ!Box password"
+              required
+              bind:value={pass}
+              autocomplete="off"
+            />
+          </label>
 
           <input
             type="submit"

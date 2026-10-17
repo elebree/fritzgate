@@ -17,6 +17,7 @@
   import settingsIcon from "../assets/settings.svg";
   import BatteryIcon from "./BatteryIcon.svelte";
   import HumidityIcon from "./HumidityIcon.svelte";
+  import Icon from "./Icon.svelte";
   import SignalIcon from "./SignalIcon.svelte";
   import TemperatureIcon from "./TemperatureIcon.svelte";
 
@@ -90,7 +91,7 @@
           class="badge top"
           data-tooltip="Target temperature {targetTemperature}℃"
         >
-          <img src={heatIcon} alt="" />{targetTemperature}℃
+          <Icon src={heatIcon} />{targetTemperature}℃
         </div>
       {/if}
       <div class="badge top left">
@@ -134,8 +135,10 @@
     position: absolute;
     display: grid;
 
-    :global(img) {
+    :global(.icon) {
+      width: 0.45em;
       height: 0.45em;
+      vertical-align: baseline;
     }
   }
 
@@ -145,7 +148,8 @@
     position: absolute;
     font-size: calc(var(--gauge-radius) / 6.5);
 
-    :global(img) {
+    :global(.icon) {
+      width: 1.2em;
       height: 1.2em;
     }
   }

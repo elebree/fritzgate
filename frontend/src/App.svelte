@@ -4,6 +4,7 @@
   import PageRouterLogin from "./Pages/PageRouterLogin.svelte";
   import PageSensors from "./Pages/PageSensors.svelte";
   import PageThermostats from "./Pages/PageThermostats.svelte";
+  import Icon from "./lib/Icon.svelte";
   import WaitBox from "./lib/WaitBox.svelte";
   import type { ApiService, StatusData } from "./interfaces";
   import github from "./assets/github-mark.svg";
@@ -13,6 +14,8 @@
   let page: string = location.hash;
   let busy = false;
   let timer: ReturnType<typeof setTimeout>;
+
+  $: isSettings = page === "#heating" || page === "#setup";
 
   function routeChange() {
     console.log(location.hash);
@@ -78,21 +81,25 @@
     <ul>
       <!-- <li><button on:click={requestNotifications}>Notifications</button></li> -->
       <li>
-        <a class="secondary" href={"#sensors"}>Dashboard</a>
+        <a
+          class="secondary"
+          href={"#sensors"}
+          aria-current={isSettings ? undefined : "page"}>Dashboard</a
+        >
       </li>
       <li>
-        <a class="secondary" href={"#heating"}>Settings</a>
+        <a
+          class="secondary"
+          href={"#heating"}
+          aria-current={isSettings ? "page" : undefined}>Settings</a
+        >
       </li>
       <li>
         <a
           class="secondary"
           href="https://github.com/elebree/fritzgate"
           target="_blank"
-          ><img
-            src={github}
-            alt="Github"
-            style="height: 1.5em; width: 1.5em;"
-          /></a
+          ><Icon src={github} label="Github" --icon-size="1.5em" /></a
         >
       </li>
     </ul>

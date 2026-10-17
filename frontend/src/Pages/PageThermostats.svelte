@@ -35,6 +35,14 @@
   }
 </script>
 
+<p class="connection">
+  <small>
+    FRITZ!Box <strong>{data?.fritz?.host ?? ""}</strong>, user
+    <strong>{data?.fritz?.user ?? ""}</strong> ·
+    <a href="#setup">change credentials</a>
+  </small>
+</p>
+
 {#if !thermostats || thermostats.length === 0}
   <WaitBox
     message="waiting for data from FRITZ!Box"
@@ -43,3 +51,10 @@
 {:else}
   <DevicesList devices={thermostats} {sensors} {api} />
 {/if}
+
+<style>
+  .connection {
+    margin-bottom: var(--pico-spacing);
+    color: var(--pico-muted-color);
+  }
+</style>

@@ -1,4 +1,6 @@
 <script lang="ts">
+  import Icon from "./Icon.svelte";
+
   export let undefinedIcon: string;
   export let icons: string[];
   export let min: number;
@@ -7,11 +9,9 @@
   export let displayValue: string;
 </script>
 
-<img
+<Icon
   src={value === undefined || value === null
     ? undefinedIcon
     : icons[Math.trunc((icons.length-0.01) * (Math.max(min, Math.min(max, value)) - min) / (max - min))]}
-  alt={displayValue}
-  title={displayValue}
-  data-tooltip={displayValue}
+  label={displayValue}
 />

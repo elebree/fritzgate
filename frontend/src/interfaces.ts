@@ -23,6 +23,7 @@ export interface StatusData {
 }
 
 export interface DeviceStatus extends SensorStatus {
+    offset: number;
     targetTemperature: number;
     referenceSensor: string;
 }

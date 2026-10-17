@@ -1,41 +1,53 @@
 <script lang="ts">
-  import humidityIcon from "../assets/humidity.svg";
-  import temperatureIcon from "../assets/thermometer.svg";
   import heatIcon from "../assets/heating.svg";
   import type { DeviceStatus } from "../interfaces";
   import BatteryIcon from "./BatteryIcon.svelte";
   import SignalIcon from "./SignalIcon.svelte";
   import HumidityIcon from "./HumidityIcon.svelte";
+  import Icon from "./Icon.svelte";
   import TemperatureIcon from "./TemperatureIcon.svelte";
 
   export let device: Partial<DeviceStatus>;
 </script>
 
-<div class="row">
-  <div class="col {device.referenceSensor ? 'strikeout' : ''}" data-tooltip="Actual temperature {device.temperature}℃">
-    <TemperatureIcon value={device.temperature}/>
+<!-- Fixed columns keep the thermostat and sensor rows of a card aligned -->
+<div class="indicators">
+  <span
+    class:strikeout={device.referenceSensor}
+    title={device.referenceSensor
+      ? `Measured ${device.temperature}℃, replaced by the reference sensor`
+      : `Actual temperature ${device.temperature}℃`}
+  >
+    <TemperatureIcon value={device.temperature} />
     {device.temperature?.toLocaleString(undefined, {
       minimumFractionDigits: 1,
       maximumFractionDigits: 1,
     })}℃
-  </div>
+  </span>
   {#if device.targetTemperature}
-    <div class="col" data-tooltip="Target temperature {device.targetTemperature}℃">
-      <img src={heatIcon} alt="" />
+    <span title="Target temperature {device.targetTemperature}℃">
+      <Icon src={heatIcon} />
       {device.targetTemperature}℃
-    </div>
+    </span>
+  {:else if device.humidity}
+    <span title="Actual humidity {device.humidity}%">
+      <HumidityIcon value={device.humidity} />
+      {Math.round(device.humidity)}%
+    </span>
   {:else}
-    <div class="col" data-tooltip="Actual humidity {device.humidity}%">
-      {#if device.humidity}
-        <HumidityIcon value={device.humidity} />
-        {Math.round(device.humidity)}%
-      {/if}
-    </div>
+    <span></span>
   {/if}
-  <div class="col" data-tooltip="Signal strength {device.rssi} dB">
-    <SignalIcon value={device.rssi} />
-  </div>
-  <div class="col" data-tooltip="Battery status  {device.battery}%">
-    <BatteryIcon value={device.battery} />
-  </div>
+  <SignalIcon value={device.rssi} />
+  <BatteryIcon value={device.battery} />
 </div>
+
+<style>
+  .indicators {
+    display: grid;
+    grid-template-columns: 5.5em 5em 1.5em 1.5em;
+    gap: 0.75em;
+    align-items: center;
+    white-space: nowrap;
+    font-size: 0.875em;
+  }
+</style>

@@ -39,12 +39,12 @@
   />
 {:else}
   <article class="devices-list">
-    <div class="row">
+    <div class="row gauges">
       {#each sensors as sensor}
         {@const thermostat = thermostats.find(
           (v) => v.referenceSensor == sensor.id
         )}
-        <div class="col-6 col-xs-6 col-sm-6 col-md-4 col-lg-3 col-xl-3 p-0">
+        <div class="col-6 col-xs-6 col-sm-6 col-md-4 col-lg-3 col-xl-3">
           <Indicator
             title={thermostat?.name ?? "Unknown location"}
             temperature={sensor.temperature}
@@ -65,3 +65,18 @@
     </div>
   </article>
 {/if}
+
+<style>
+  /* Bootstrap gutters keep the curved labels of neighbouring gauges apart */
+  .gauges {
+    --bs-gutter-x: 0.25rem;
+    --bs-gutter-y: 0.25rem;
+  }
+
+  @media (min-width: 576px) {
+    .gauges {
+      --bs-gutter-x: 1rem;
+      --bs-gutter-y: 1rem;
+    }
+  }
+</style>
