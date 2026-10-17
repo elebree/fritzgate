@@ -6,6 +6,12 @@
 // Minimum time each camera orientation is tried before mirroring again
 #define QR_MIRROR_TOGGLE_INTERVAL_MS 2000
 
+// The flash LED pulses dimly while the reader waits for a code.
+// Channel 2 runs on LEDC timer 1; the camera clock uses channel 0 on timer 0.
+#define QR_LED_LEDC_CHANNEL 2
+// Brightness out of 255, low enough not to glare in the camera image
+#define QR_LED_BRIGHTNESS 8
+
 ESP32QRCodeReader reader(CAMERA_MODEL_AI_THINKER);
 boolean qrDone = false;
 std::string qrCodeText = "";
@@ -74,10 +80,17 @@ std::string ReadWifiQrCode()
 
   xTaskCreate(onQrCodeTask, "onQrCode", 4 * 1024, NULL, 4, NULL);
 
-  while (!qrDone)
+  ledcSetup(QR_LED_LEDC_CHANNEL, 5000, 8);
+  ledcAttachPin(FLASH_GPIO_NUM, QR_LED_LEDC_CHANNEL);
+
+  // Pulse the LED for 100 ms every two seconds to show that the reader is running
+  for (int i = 0; !qrDone; i++)
   {
+    ledcWrite(QR_LED_LEDC_CHANNEL, i % 20 == 0 ? QR_LED_BRIGHTNESS : 0);
     delay(100);
   }
+  ledcWrite(QR_LED_LEDC_CHANNEL, 0);
+  ledcDetachPin(FLASH_GPIO_NUM);
   reader.end();
   return qrCodeText;
 }

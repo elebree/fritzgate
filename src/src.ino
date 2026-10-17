@@ -20,6 +20,9 @@
 #include <time.h>
 #include <esp_task_wdt.h>
 
+// GPIO for ESP32-CAM flash (LED), typically GPIO 4
+#define FLASH_GPIO_NUM 4
+
 // If this macro is defined, the board will try to read WiFi SSID and password from a QR code using camera if not specified manually.
 // This is enabled only when built with PlatformIO.
 #ifdef READ_WIFI_QR_CODE
@@ -32,9 +35,6 @@
 
 // FritzBox settings refresh interval: 30 seconds
 #define FRITZGATE_REFRESH_TIMEOUT 30
-
-// GPIO for ESP32-CAM flash (LED), typically GPIO 4
-#define FLASH_GPIO_NUM 4
 
 // Maximum number of sensors that can be handled
 #define MAX_SENSORS_COUNT 20
