@@ -1,0 +1,121 @@
+name: Release
+
+# Push a tag like v1.2.0 to publish a release with flashable binaries.
+# Tags with a suffix (v1.2.0-beta.1) become prereleases.
+on:
+  push:
+    tags: ['v*']
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      # Regenerate src/index_html.h so the firmware embeds the web UI of the tagged commit
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Install Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: 'frontend/.node-version'
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Build web UI
+        working-directory: ./frontend
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm run build:firmware
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/pip
+            ~/.platformio/.cache
+          key: ${{ runner.os }}-pio
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install PlatformIO Core and esptool
+        run: pip install --upgrade platformio esptool==4.8.1
+
+      - name: Build firmware
+        run: pio run
+
+      # Offsets match the esp32cam board (huge_app partitions, DIO flash at 40 MHz, 4 MB)
+      - name: Collect binaries
+        run: |
+          name="fritzgate-$GITHUB_REF_NAME"
+          build=.pio/build/esp32cam
+          mkdir -p release
+          cp "$build/bootloader.bin" "release/$name-bootloader.bin"
+          cp "$build/partitions.bin" "release/$name-partitions.bin"
+          cp ~/.platformio/packages/framework-arduinoespressif32/tools/partitions/boot_app0.bin "release/$name-boot_app0.bin"
+          cp "$build/firmware.bin" "release/$name-firmware.bin"
+
+          # Single image for flashing at 0x0 with any tool
+          esptool.py --chip esp32 merge_bin -o "release/$name-full.bin" \
+            --flash_mode dio --flash_freq 40m --flash_size 4MB \
+            0x1000 "release/$name-bootloader.bin" \
+            0x8000 "release/$name-partitions.bin" \
+            0xe000 "release/$name-boot_app0.bin" \
+            0x10000 "release/$name-firmware.bin"
+
+          ls -l release
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          name="fritzgate-$GITHUB_REF_NAME"
+
+          sed "s|@NAME@|$name|g" > "$RUNNER_TEMP/notes.md" <<'EOF'
+          ### Flashing
+
+          Connect the ESP32-CAM through an ESP32-CAM-MB adapter or a USB-to-serial adapter. The board has no USB port of its own.
+
+          **New installation:** write the complete image to address `0x0`. This erases saved settings.
+
+          ```bash
+          esptool.py --chip esp32 write_flash 0x0 @NAME@-full.bin
+          ```
+
+          **Update:** write the four parts instead. This keeps the saved Wi-Fi, FRITZ!Box login and sensor bindings.
+
+          ```bash
+          esptool.py --chip esp32 write_flash 0x1000 @NAME@-bootloader.bin 0x8000 @NAME@-partitions.bin 0xe000 @NAME@-boot_app0.bin 0x10000 @NAME@-firmware.bin
+          ```
+
+          To flash without installing anything, open Espressif's [browser flasher](https://espressif.github.io/esptool-js/) in Chrome or Edge and add the same files and addresses.
+          If the tool can't connect, hold IO0, press RST and release IO0 to put the board into download mode.
+
+          | File | Address |
+          |---|---|
+          | `@NAME@-full.bin` | `0x0` |
+          | `@NAME@-bootloader.bin` | `0x1000` |
+          | `@NAME@-partitions.bin` | `0x8000` |
+          | `@NAME@-boot_app0.bin` | `0xe000` |
+          | `@NAME@-firmware.bin` | `0x10000` |
+
+          EOF
+
+          prerelease=""
+          if [[ "$GITHUB_REF_NAME" == *-* ]]; then
+            prerelease="--prerelease"
+          fi
+
+          # The generated changelog is appended after the notes above
+          gh release create "$GITHUB_REF_NAME" release/*.bin $prerelease \
+            --generate-notes --notes-file "$RUNNER_TEMP/notes.md"
