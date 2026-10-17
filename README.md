@@ -54,7 +54,7 @@ View the online demo [here](https://elebree.github.io/fritzgate/).
      pio run -t upload
      ```
 
-   - On the first start, show a Wi-Fi QR code to the board's camera. The code must use the standard `WIFI:S:<network>;T:WPA;P:<password>;;` format. The FRITZ!Box user interface and most phones can show such a code for your network. The board saves the credentials and restarts. The flash LED blinks while the board connects to Wi-Fi.
+   - On the first start, show a Wi-Fi QR code to the board's camera. The code must use the standard `WIFI:S:<network>;T:WPA;P:<password>;;` format. The FRITZ!Box user interface and most phones can show such a code for your network. While the board waits for the code, the flash LED glows dimly every two seconds. The board saves the credentials and restarts. The flash LED blinks while the board connects to Wi-Fi.
 
 4. **Arduino IDE:**
    - Install the **esp32** board package version **2.0.x**. The PlatformIO build uses 2.0.11. Version 3.x is not supported.
