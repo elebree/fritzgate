@@ -1,0 +1,3 @@
+# Manifest and flash parts of a release, downloaded by fetch-firmware.sh during the Pages deploy
+manifest.json
+*.bin

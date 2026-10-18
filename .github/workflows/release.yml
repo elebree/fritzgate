@@ -12,6 +12,7 @@ jobs:
 
     permissions:
       contents: write
+      actions: write # to start the Pages deploy
 
     steps:
       - name: Checkout
@@ -72,6 +73,27 @@ jobs:
             0xe000 "release/$name-boot_app0.bin" \
             0x10000 "release/$name-firmware.bin"
 
+          # Manifest for ESP Web Tools, with the same offsets; the web installer serves it next to the parts
+          cat > "release/$name-manifest.json" <<EOF
+          {
+            "name": "FritzGate",
+            "version": "$GITHUB_REF_NAME",
+            "new_install_prompt_erase": true,
+            "new_install_improv_wait_time": 0,
+            "builds": [
+              {
+                "chipFamily": "ESP32",
+                "parts": [
+                  { "path": "$name-bootloader.bin", "offset": 4096 },
+                  { "path": "$name-partitions.bin", "offset": 32768 },
+                  { "path": "$name-boot_app0.bin", "offset": 57344 },
+                  { "path": "$name-firmware.bin", "offset": 65536 }
+                ]
+              }
+            ]
+          }
+          EOF
+
           ls -l release
 
       - name: Create release
@@ -117,5 +139,14 @@ jobs:
           fi
 
           # The generated changelog is appended after the notes above
-          gh release create "$GITHUB_REF_NAME" release/*.bin $prerelease \
+          gh release create "$GITHUB_REF_NAME" release/*.bin release/*.json $prerelease \
             --generate-notes --notes-file "$RUNNER_TEMP/notes.md"
+
+      # The web installer offers the latest regular release. Releases created with the workflow token
+      # don't start other workflows, so start the Pages deploy explicitly (on main, which may deploy).
+      - name: Publish the firmware in the web installer
+        if: ${{ !contains(github.ref_name, '-') }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: gh workflow run deploy.yml --ref main

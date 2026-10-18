@@ -1,13 +1,22 @@
 name: Deploy to GitHub Pages
+
+# Publishes github pages (custom domain set in the repository's Pages settings):
+#   /          landing page (site/)
+#   /flasher/  web installer with the latest release's firmware
+#   /demo/     web UI demo (frontend/)
 on:
   push:
     branches: 'main'
+  # Started by the release workflow, so the web installer offers the new firmware
+  workflow_dispatch:
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
 jobs:
   build_site:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./frontend
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -27,18 +36,44 @@ jobs:
           cache-dependency-path: frontend/pnpm-lock.yaml
 
       - name: Install dependencies
+        working-directory: ./frontend
         run: pnpm install --frozen-lockfile
 
-      - name: Build
-        env:
-          BASE_PATH: '/${{ github.event.repository.name }}'
+      # The demo is a single index.html that loads status.json next to it, so it works under /demo/
+      - name: Build demo
+        working-directory: ./frontend
+        run: pnpm run build
+
+      - name: Assemble site
         run: |
-          pnpm run build
+          cp -r site _site
+          cp -r frontend/dist _site/demo
+
+      # GitHub release downloads send no CORS headers, so the site serves the firmware itself
+      - name: Add the latest firmware to the web installer
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          if ! bash _site/flasher/fetch-firmware.sh; then
+            echo "::warning::No release with a manifest found, the web installer shows a notice instead"
+            rm -f _site/flasher/manifest.json
+          fi
+          rm _site/flasher/fetch-firmware.sh _site/flasher/.gitignore
+
+      - name: Add the counter to every page
+        env:
+          ELEBREE_COUNTER: ${{ vars.ELEBREE_COUNTER || secrets.ELEBREE_COUNTER }}
+        run: |
+          if [ -z "$ELEBREE_COUNTER" ]; then
+            exit 0
+          fi
+          printf '%s\n' "$ELEBREE_COUNTER" > "$RUNNER_TEMP/counter.html"
+          find _site -name '*.html' -print -exec sed -i "/<\/body>/e cat $RUNNER_TEMP/counter.html" {} +
 
       - name: Upload Artifacts
         uses: actions/upload-pages-artifact@v5
         with:
-          path: 'frontend/dist/'
+          path: '_site/'
 
   deploy:
     needs: build_site

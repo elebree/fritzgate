@@ -2,11 +2,11 @@
 [![en](https://img.shields.io/badge/lang-en-blue.svg)](README.md) [![de](https://img.shields.io/badge/lang-de-red.svg)](README.de.md) [![PlatformIO CI](https://github.com/elebree/fritzgate/actions/workflows/platformio.yml/badge.svg)](https://github.com/elebree/fritzgate/actions/workflows/platformio.yml) [![Frontend CI](https://github.com/elebree/fritzgate/actions/workflows/deploy.yml/badge.svg)](https://github.com/elebree/fritzgate/actions/workflows/deploy.yml)
 
 **FritzGate** turns an **Ai Thinker** board into a smart thermostat controller. It works with thermostats connected to a **FRITZ!Box** (`FRITZ!DECT 301` and `FRITZ!DECT 302`) and uses any of 70+ Bluetooth temperature sensors for precise room temperature control. Supported vendors include Govee, Xiaomi, Qingping, Ruuvi, Inkbird, SwitchBot and ThermoPro.
-[![FritzGate screenshot](docs/FritzGate_Screenshot.svg)](https://elebree.github.io/fritzgate/)
+[![FritzGate screenshot](docs/FritzGate_Screenshot.svg)](https://fritzgate.elebree.com/demo/)
 
 ## Demo
 
-View the online demo [here](https://elebree.github.io/fritzgate/).
+View the online demo [here](https://fritzgate.elebree.com/demo/).
 
 ## Features
 

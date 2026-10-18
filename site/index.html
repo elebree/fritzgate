@@ -1,0 +1,985 @@
+<!doctype html>
+<html lang="en" data-theme="auto">
+<head>
+  <meta charset="utf-8" />
+  <script>document.documentElement.classList.add('js');</script>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>FritzGate — Smarter heating for your FRITZ!Box</title>
+  <meta name="description" id="metaDesc" content="FritzGate teaches your FRITZ!DECT thermostats the real room temperature using the Bluetooth sensors you already own. Open source, local, no cloud." />
+  <meta name="color-scheme" content="light dark" />
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="FritzGate — Smarter heating for your FRITZ!Box" />
+  <meta property="og:description" content="Heat the room, not the radiator. Correct your FRITZ!DECT thermostats with the sensors you already trust." />
+  <meta property="og:url" content="https://fritzgate.elebree.com/" />
+  <meta property="og:image" content="https://fritzgate.elebree.com/assets/social.png" />
+  <meta property="og:image:width" content="1280" />
+  <meta property="og:image:height" content="640" />
+  <meta property="og:image:alt" content="FritzGate dashboard in a browser and the FRITZ!Box connection dialog on a phone" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%23ee5a24' d='M16 2c-1.7 0-3 1.3-3 3v11.4a6 6 0 1 0 6 0V5c0-1.7-1.3-3-3-3zm0 24a3 3 0 0 1-1.5-5.6l.5-.3V7a1 1 0 0 1 2 0v13.1l.5.3A3 3 0 0 1 16 26z'/%3E%3C/svg%3E" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet" />
+
+  <style>
+    :root {
+      --bg: #fbfbfd;
+      --bg-soft: #f3f4f8;
+      --surface: #ffffff;
+      --text: #14171d;
+      --muted: #5b6472;
+      --border: #e7e9ef;
+      --accent: #ee5a24;
+      --accent-2: #f7a700;
+      --cool: #2f6df0;
+      --ok: #27ae60;
+      --shadow: 0 1px 2px rgba(20,24,30,.04), 0 8px 24px rgba(20,24,30,.06);
+      --shadow-lg: 0 20px 50px rgba(20,24,30,.12);
+      --glow-1: rgba(238,90,36,.18);
+      --glow-2: rgba(47,109,240,.14);
+      --radius: 16px;
+      --font: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      --font-head: "Space Grotesk", var(--font);
+    }
+    /* Dark via system preference, unless user forced light */
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        --bg: #0e1116;
+        --bg-soft: #141922;
+        --surface: #161b23;
+        --text: #e9ecf2;
+        --muted: #9aa4b2;
+        --border: #262d38;
+        --accent: #ff6b3d;
+        --accent-2: #ffb020;
+        --cool: #5b8cff;
+        --ok: #3ddc84;
+        --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
+        --shadow-lg: 0 24px 60px rgba(0,0,0,.5);
+        --glow-1: rgba(255,107,61,.16);
+        --glow-2: rgba(91,140,255,.14);
+      }
+    }
+    /* Dark when user forces it */
+    :root[data-theme="dark"] {
+      --bg: #0e1116;
+      --bg-soft: #141922;
+      --surface: #161b23;
+      --text: #e9ecf2;
+      --muted: #9aa4b2;
+      --border: #262d38;
+      --accent: #ff6b3d;
+      --accent-2: #ffb020;
+      --cool: #5b8cff;
+      --ok: #3ddc84;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
+      --shadow-lg: 0 24px 60px rgba(0,0,0,.5);
+      --glow-1: rgba(255,107,61,.16);
+      --glow-2: rgba(91,140,255,.14);
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+    @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+    body {
+      margin: 0;
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.65;
+      font-size: 17px;
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+    h1, h2, h3 { font-family: var(--font-head); line-height: 1.12; letter-spacing: -.02em; margin: 0; }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    img, svg { max-width: 100%; }
+
+    .wrap { width: 100%; max-width: 1120px; margin: 0 auto; padding: 0 20px; }
+    .section { padding: 84px 0; }
+    @media (max-width: 720px){ .section { padding: 56px 0; } body { font-size: 16px; } }
+
+    .kicker {
+      font-family: var(--font-head);
+      text-transform: uppercase;
+      letter-spacing: .14em;
+      font-size: .74rem;
+      font-weight: 600;
+      color: var(--accent);
+      margin: 0 0 14px;
+    }
+    .section-title { font-size: clamp(1.7rem, 4vw, 2.5rem); margin-bottom: 14px; }
+    .section-lead { color: var(--muted); font-size: 1.08rem; max-width: 62ch; margin: 0; }
+    .center { text-align: center; }
+    .center .section-lead { margin-left: auto; margin-right: auto; }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex; align-items: center; gap: .55em;
+      padding: .78em 1.4em; border-radius: 999px;
+      font-weight: 600; font-size: .98rem; cursor: pointer;
+      border: 1.5px solid transparent; transition: transform .15s ease, box-shadow .2s ease, background .2s ease, border-color .2s ease;
+      text-decoration: none !important; white-space: nowrap;
+    }
+    .btn:hover { transform: translateY(-2px); }
+    .btn-primary { background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #fff; box-shadow: 0 8px 22px var(--glow-1); }
+    .btn-primary:hover { box-shadow: 0 12px 30px var(--glow-1); }
+    .btn-ghost { background: var(--surface); color: var(--text); border-color: var(--border); box-shadow: var(--shadow); }
+    .btn-ghost:hover { border-color: var(--accent); }
+    .btn svg { width: 1.1em; height: 1.1em; flex: none; }
+
+    /* Header */
+    header.site {
+      position: sticky; top: 0; z-index: 50;
+      backdrop-filter: saturate(180%) blur(14px);
+      -webkit-backdrop-filter: saturate(180%) blur(14px);
+      background: color-mix(in srgb, var(--bg) 78%, transparent);
+      border-bottom: 1px solid transparent;
+      transition: border-color .2s ease, background .2s ease;
+    }
+    header.site.scrolled { border-bottom-color: var(--border); }
+    .nav { display: flex; align-items: center; gap: 18px; height: 64px; }
+    .brand { display: flex; align-items: center; gap: .55em; font-family: var(--font-head); font-weight: 700; font-size: 1.15rem; color: var(--text); letter-spacing: -.01em; }
+    .brand:hover { text-decoration: none; }
+    .brand .mark { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 8px; background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #fff; }
+    .brand .mark svg { width: 17px; height: 17px; }
+    .nav-links { display: flex; gap: 22px; margin-left: 14px; }
+    .nav-links a { color: var(--muted); font-size: .94rem; font-weight: 500; }
+    .nav-links a:hover { color: var(--text); text-decoration: none; }
+    .nav-spacer { flex: 1; }
+    .nav-tools { display: flex; align-items: center; gap: 8px; }
+    .icon-btn {
+      display: inline-grid; place-items: center; width: 38px; height: 38px;
+      border-radius: 10px; border: 1px solid var(--border); background: var(--surface);
+      color: var(--text); cursor: pointer; transition: border-color .2s, color .2s;
+      font-size: .82rem; font-weight: 600;
+    }
+    .icon-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .icon-btn svg { width: 18px; height: 18px; flex: none; }
+    .lang-btn { width: auto; padding: 0 12px; display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-head); }
+    @media (max-width: 860px){ .nav-links { display: none; } }
+    @media (max-width: 480px){ .gh-label { display: none; } }
+    .sun { display: none; } .moon { display: inline; }
+    :root[data-theme="dark"] .sun { display: inline; } :root[data-theme="dark"] .moon { display: none; }
+    @media (prefers-color-scheme: dark){ :root:not([data-theme="light"]) .sun { display:inline; } :root:not([data-theme="light"]) .moon { display:none; } }
+
+    /* Hero, styled like docs/fritzgate-marketing.png: always dark, whatever the page theme */
+    .hero {
+      --hero-text: #e8edf5;
+      --hero-muted: #9aa7bb;
+      --hero-amber: #ffbf00;
+      --hero-peach: #f2c894;
+      --hero-sky: #9fc0de;
+      position: relative; overflow: hidden;
+      /* Runs up under the header (64px and its 1px border), which stays transparent until the page scrolls */
+      margin-top: -65px; padding: calc(65px + 32px) 0 44px;
+      color: var(--hero-text);
+      background:
+        radial-gradient(900px 600px at 78% 18%, rgba(102, 149, 206, .32), transparent 70%),
+        radial-gradient(700px 520px at 92% 96%, rgba(255, 191, 0, .20), transparent 70%),
+        radial-gradient(600px 500px at 4% 100%, rgba(242, 200, 148, .12), transparent 70%),
+        linear-gradient(160deg, #111a2c 0%, #0b1120 55%, #0a0f1b 100%);
+    }
+    .hero-rings { position: absolute; inset: 0; width: 100%; height: 100%; max-width: none; pointer-events: none; }
+    .hero .wrap { position: relative; z-index: 1; }
+    .hero-grid { display: grid; grid-template-columns: minmax(0, .85fr) minmax(0, 1.15fr); gap: 44px; align-items: center; }
+    @media (max-width: 920px){ .hero-grid { grid-template-columns: 1fr; gap: 48px; } }
+    .hero-eyebrow { margin: 0; font-family: var(--font-head); font-size: .8rem; font-weight: 600; letter-spacing: .14em; text-transform: uppercase; color: var(--hero-peach); }
+    .hero h1 { margin-top: 10px; font-size: clamp(2rem, 4vw, 2.6rem); line-height: 1.08; color: var(--hero-text); }
+    .hero h1 .accent { background: linear-gradient(90deg, var(--hero-amber), var(--hero-peach)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+    .hero p.sub { font-size: 1.05rem; color: #c3ccda; margin: 16px 0 0; max-width: 52ch; }
+    .hero-points { list-style: none; margin: 20px 0 0; padding: 0; display: grid; gap: 7px; }
+    .hero-points li { display: flex; align-items: center; gap: 12px; color: #d5dce7; font-size: .97rem; line-height: 1.45; }
+    .hero-points i { flex: none; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; color: #0d1320; background: var(--hero-peach); }
+    .hero-points li:nth-child(2) i { background: var(--hero-sky); }
+    .hero-points li:nth-child(3) i { background: var(--hero-amber); }
+    .hero-points li:nth-child(4) i { background: #c9d6e8; }
+    .hero-points svg { width: 17px; height: 17px; }
+    .hero-cta { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 24px; }
+    .hero .btn-ghost { background: rgba(255, 255, 255, .06); color: var(--hero-text); border-color: rgba(255, 255, 255, .28); box-shadow: none; }
+    .hero .btn-ghost:hover { border-color: var(--hero-amber); }
+    .hero-foot { margin: 14px 0 0; font-size: .88rem; color: var(--hero-muted); }
+
+    /* The app in a browser window and on a phone, as in the marketing picture */
+    .hero-devices { position: relative; width: 100%; max-width: 680px; justify-self: center; padding-bottom: 15%; }
+    .device-browser { width: 91%; border-radius: 12px; overflow: hidden; background: #fff; box-shadow: 0 34px 80px rgba(0, 0, 0, .55), 0 0 0 1px rgba(255, 255, 255, .08); }
+    .device-browser .bar { height: 30px; display: flex; align-items: center; gap: 6px; padding: 0 11px; background: #e9edf3; }
+    .device-browser .bar b { width: 10px; height: 10px; border-radius: 50%; background: #ff5f57; }
+    .device-browser .bar b:nth-child(2) { background: #febc2e; }
+    .device-browser .bar b:nth-child(3) { background: #28c840; }
+    .device-browser .bar span { margin-left: 12px; flex: 1; height: 19px; border-radius: 10px; background: #fff; color: #5b6576; font-size: .7rem; line-height: 19px; padding-left: 10px; }
+    .device-browser img { display: block; width: 100%; height: auto; aspect-ratio: 1280 / 760; object-fit: cover; object-position: top; }
+    /* Slim bezel: percentage padding is relative to .hero-devices, so 0.9% is about 3% of the phone */
+    .device-phone { position: absolute; right: 0; bottom: 0; width: 31%; padding: .9%; border-radius: 14% / 6.5%; background: #0b0e14; box-shadow: 0 34px 70px rgba(0, 0, 0, .6), 0 0 0 1px rgba(255, 255, 255, .22), inset 0 0 0 1px rgba(255, 255, 255, .06); }
+    .device-phone .screen { position: relative; border-radius: 12.5% / 5.8%; overflow: hidden; background: #e6e8ec; }
+    .device-phone .screen::before { content: ""; position: absolute; left: 50%; top: 2%; width: 28%; height: 3.4%; transform: translateX(-50%); border-radius: 99px; background: #05070b; }
+    .device-phone img { display: block; width: 100%; height: auto; aspect-ratio: 384 / 832; }
+
+    /* Header over the dark hero, until the page scrolls (needs the script that sets .scrolled) */
+    .js header.site:not(.scrolled) { background: transparent; backdrop-filter: none; -webkit-backdrop-filter: none; }
+    .js header.site:not(.scrolled) .brand,
+    .js header.site:not(.scrolled) .nav-links a:hover { color: #fff; }
+    .js header.site:not(.scrolled) .nav-links a { color: rgba(232, 237, 245, .72); }
+    .js header.site:not(.scrolled) .icon-btn,
+    .js header.site:not(.scrolled) .btn-ghost { background: rgba(255, 255, 255, .06); border-color: rgba(255, 255, 255, .2); color: #e8edf5; box-shadow: none; }
+    .js header.site:not(.scrolled) .icon-btn:hover,
+    .js header.site:not(.scrolled) .btn-ghost:hover { border-color: #ffbf00; color: #fff; }
+
+    /* Generic card grids */
+    .grid { display: grid; gap: 18px; }
+    .g-2 { grid-template-columns: repeat(2, 1fr); }
+    .g-3 { grid-template-columns: repeat(3, 1fr); }
+    .g-4 { grid-template-columns: repeat(4, 1fr); }
+    @media (max-width: 900px){ .g-3, .g-4 { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 560px){ .g-2, .g-3, .g-4 { grid-template-columns: 1fr; } }
+
+    .card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 24px; box-shadow: var(--shadow); transition: transform .2s ease, box-shadow .2s ease, border-color .2s ease;
+    }
+    .card.hover:hover { transform: translateY(-4px); box-shadow: var(--shadow-lg); border-color: color-mix(in srgb, var(--accent) 40%, var(--border)); }
+    .card .ic { width: 46px; height: 46px; border-radius: 12px; display: grid; place-items: center; background: color-mix(in srgb, var(--accent) 14%, transparent); color: var(--accent); margin-bottom: 16px; }
+    .card .ic svg { width: 23px; height: 23px; }
+    .card h3 { font-size: 1.16rem; margin-bottom: 8px; }
+    .card p { color: var(--muted); margin: 0; font-size: .96rem; }
+
+    .num { font-family: var(--font-head); font-weight: 700; font-size: .95rem; width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; background: linear-gradient(135deg, var(--accent), var(--accent-2)); color: #fff; margin-bottom: 16px; }
+
+    /* Problem band */
+    .band { background: var(--bg-soft); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+
+    /* Diagram */
+    .diagram { background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 26px; box-shadow: var(--shadow); margin-top: 34px; }
+    .diagram svg { width: 100%; height: auto; }
+    .diag-card { fill: var(--bg-soft); stroke: var(--border); stroke-width: 1.5; }
+    .diag-title { fill: var(--text); font-weight: 700; font-family: var(--font-head); }
+    .diag-sub { fill: var(--muted); }
+    .diag-flow { stroke: var(--muted); stroke-width: 2.2; fill: none; }
+    .diag-pill { fill: color-mix(in srgb, var(--accent) 15%, var(--surface)); stroke: color-mix(in srgb, var(--accent) 35%, var(--border)); stroke-width: 1; }
+    .diag-pill-tx { fill: var(--accent); font-weight: 600; font-family: var(--font-head); }
+    .diag-dot { fill: var(--accent); }
+    .diag-dot.c { fill: var(--cool); }
+    .diag-cap { text-align: center; color: var(--muted); font-size: .92rem; margin: 18px auto 0; max-width: 60ch; }
+
+    /* FRITZ models */
+    .model-card { display: flex; gap: 18px; align-items: flex-start; }
+    .model-card .pic { width: 64px; height: 84px; flex-shrink: 0; border-radius: 12px; background: linear-gradient(160deg, var(--bg-soft), var(--surface)); border: 1px solid var(--border); display: grid; place-items: center; }
+    .model-card .pic svg { width: 34px; height: 54px; }
+    .tag-ok { display: inline-flex; align-items: center; gap: .35em; font-size: .72rem; font-weight: 700; color: var(--ok); margin-top: 8px; }
+    .tag-ok svg { width: 14px; height: 14px; }
+
+    /* Sensor chips */
+    .chips { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 26px; }
+    .chip {
+      display: inline-flex; align-items: center; gap: .5em; padding: .6em 1.05em; border-radius: 12px;
+      background: var(--surface); border: 1px solid var(--border); font-weight: 600; font-size: .95rem; box-shadow: var(--shadow);
+      transition: transform .15s ease, border-color .2s ease;
+    }
+    .chip:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
+    .chip .d { width: 9px; height: 9px; border-radius: 50%; }
+    .chip.more { background: transparent; border-style: dashed; color: var(--muted); }
+    .sensors-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 18px; margin-top: 28px; }
+    .powered { font-size: .85rem; color: var(--muted); }
+
+    /* Demo band */
+    .shot { border-radius: 18px; border: 1px solid var(--border); box-shadow: var(--shadow-lg); overflow: hidden; background: var(--surface); }
+    .shot img { display: block; width: 100%; height: auto; }
+    /* The screenshot follows the page theme */
+    .shot img.shot-dark { display: none; }
+    :root[data-theme="dark"] .shot img.shot-light { display: none; }
+    :root[data-theme="dark"] .shot img.shot-dark { display: block; }
+    @media (prefers-color-scheme: dark){
+      :root:not([data-theme="light"]) .shot img.shot-light { display: none; }
+      :root:not([data-theme="light"]) .shot img.shot-dark { display: block; }
+    }
+    .demo-grid { display: grid; grid-template-columns: .9fr 1.1fr; gap: 46px; align-items: center; }
+    @media (max-width: 900px){ .demo-grid { grid-template-columns: 1fr; gap: 30px; } }
+
+    /* FAQ */
+    .faq { max-width: 820px; margin: 36px auto 0; }
+    details.q { border: 1px solid var(--border); border-radius: 14px; background: var(--surface); margin-bottom: 12px; overflow: hidden; box-shadow: var(--shadow); }
+    details.q summary { list-style: none; cursor: pointer; padding: 20px 22px; font-weight: 600; font-size: 1.04rem; display: flex; align-items: center; justify-content: space-between; gap: 16px; font-family: var(--font-head); }
+    details.q summary::-webkit-details-marker { display: none; }
+    details.q summary .plus { flex-shrink: 0; width: 22px; height: 22px; position: relative; transition: transform .25s ease; color: var(--accent); }
+    details.q[open] summary .plus { transform: rotate(45deg); }
+    details.q summary .plus::before, details.q summary .plus::after { content: ""; position: absolute; background: currentColor; border-radius: 2px; }
+    details.q summary .plus::before { left: 50%; top: 2px; width: 2px; height: 18px; transform: translateX(-50%); }
+    details.q summary .plus::after { top: 50%; left: 2px; height: 2px; width: 18px; transform: translateY(-50%); }
+    details.q .a { padding: 0 22px 20px; color: var(--muted); font-size: .98rem; }
+
+    /* Final CTA */
+    .cta-band { position: relative; overflow: hidden; border-radius: 26px; padding: 56px 40px; text-align: center; color: #fff; background: linear-gradient(135deg, var(--accent), var(--accent-2)); box-shadow: var(--shadow-lg); }
+    .cta-band h2 { font-size: clamp(1.7rem, 4.5vw, 2.6rem); color: #fff; }
+    .cta-band p { font-size: 1.1rem; opacity: .95; max-width: 52ch; margin: 14px auto 28px; }
+    .cta-band .btn-primary { background: #fff; color: var(--accent); box-shadow: 0 10px 30px rgba(0,0,0,.18); }
+    .cta-band .btn-ghost { background: transparent; color: #fff; border-color: rgba(255,255,255,.6); box-shadow: none; }
+    .cta-band .btn-ghost:hover { border-color: #fff; background: rgba(255,255,255,.12); }
+    @media (max-width: 560px){ .cta-band { padding: 42px 22px; } }
+
+    /* Footer */
+    footer.site { border-top: 1px solid var(--border); padding: 48px 0 40px; background: var(--bg-soft); }
+    .foot-grid { display: flex; flex-wrap: wrap; gap: 30px 60px; justify-content: space-between; }
+    .foot-links { display: flex; flex-wrap: wrap; gap: 24px 40px; }
+    .foot-col h4 { font-size: .78rem; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); margin: 0 0 12px; font-family: var(--font-head); }
+    .foot-col a { display: block; color: var(--text); font-size: .94rem; margin-bottom: 8px; font-weight: 500; }
+    .foot-col a:hover { color: var(--accent); }
+    .foot-bottom { margin-top: 36px; padding-top: 22px; border-top: 1px solid var(--border); display: flex; flex-wrap: wrap; gap: 10px 20px; justify-content: space-between; align-items: center; color: var(--muted); font-size: .84rem; }
+    .disclaimer { max-width: 60ch; }
+
+    /* Reveal (progressive enhancement: only hidden when JS is active) */
+    .js .reveal { opacity: 0; transform: translateY(22px); transition: opacity .6s ease, transform .6s ease; }
+    .js .reveal.in { opacity: 1; transform: none; }
+    @media (prefers-reduced-motion: reduce){ .js .reveal { opacity: 1; transform: none; transition: none; } }
+
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+  <!-- ============ HEADER ============ -->
+  <header class="site" id="siteHeader">
+    <div class="wrap">
+      <nav class="nav">
+        <a class="brand" href="#top" aria-label="FritzGate home">
+          <span class="mark" aria-hidden="true">
+            <svg viewBox="0 0 32 32"><path fill="currentColor" d="M16 2c-1.7 0-3 1.3-3 3v11.4a6 6 0 1 0 6 0V5c0-1.7-1.3-3-3-3zm0 24a3 3 0 0 1-1.5-5.6l.5-.3V7a1 1 0 0 1 2 0v13.1l.5.3A3 3 0 0 1 16 26z"/></svg>
+          </span>
+          FritzGate
+        </a>
+        <div class="nav-links">
+          <a href="#how" data-i18n="nav.how">How it works</a>
+          <a href="#models" data-i18n="nav.models">Thermostats</a>
+          <a href="#sensors" data-i18n="nav.sensors">Sensors</a>
+          <a href="#install" data-i18n="nav.install">Install</a>
+          <a href="#faq" data-i18n="nav.faq">FAQ</a>
+        </div>
+        <div class="nav-spacer"></div>
+        <div class="nav-tools">
+          <button class="icon-btn lang-btn" id="langBtn" aria-label="Switch language" title="Deutsch / English">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>
+            <span id="langLabel">DE</span>
+          </button>
+          <button class="icon-btn" id="themeBtn" aria-label="Toggle dark mode">
+            <svg class="moon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+            <svg class="sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M19.1 4.9l-1.8 1.8M6.7 17.3l-1.8 1.8"/></svg>
+          </button>
+          <a class="btn btn-ghost" href="https://github.com/elebree/fritzgate" target="_blank" rel="noopener">
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5A11.5 11.5 0 0 0 .5 12a11.5 11.5 0 0 0 7.9 10.9c.6.1.8-.3.8-.6v-2c-3.2.7-3.9-1.4-3.9-1.4-.5-1.3-1.3-1.7-1.3-1.7-1.1-.7 0-.7 0-.7 1.2 0 1.8 1.2 1.8 1.2 1 1.8 2.8 1.3 3.5 1 .1-.8.4-1.3.7-1.6-2.6-.3-5.3-1.3-5.3-5.7 0-1.3.5-2.3 1.2-3.1-.1-.3-.5-1.5.1-3.1 0 0 1-.3 3.3 1.2a11.5 11.5 0 0 1 6 0c2.3-1.5 3.3-1.2 3.3-1.2.6 1.6.2 2.8.1 3.1.8.8 1.2 1.8 1.2 3.1 0 4.4-2.7 5.4-5.3 5.7.4.4.8 1.1.8 2.2v3.3c0 .3.2.7.8.6A11.5 11.5 0 0 0 23.5 12 11.5 11.5 0 0 0 12 .5z"/></svg>
+            <span class="gh-label">GitHub</span>
+          </a>
+        </div>
+      </nav>
+    </div>
+  </header>
+
+  <main id="top">
+    <!-- ============ HERO ============ -->
+    <section class="hero">
+      <!-- Gauge rings, like the dashboard's -->
+      <svg class="hero-rings" viewBox="0 0 1600 900" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+        <g fill="none" stroke-linecap="round" stroke-width="22">
+          <circle cx="1180" cy="470" r="420" stroke="#f2c894" stroke-opacity=".10" stroke-dasharray="1650 1000" transform="rotate(100 1180 470)"/>
+          <circle cx="1180" cy="470" r="380" stroke="#9fc0de" stroke-opacity=".10" stroke-dasharray="1200 1400" transform="rotate(120 1180 470)"/>
+          <circle cx="1180" cy="470" r="420" stroke="#f2c894" stroke-opacity=".05"/>
+          <circle cx="1180" cy="470" r="380" stroke="#9fc0de" stroke-opacity=".05"/>
+        </g>
+      </svg>
+      <div class="wrap">
+        <div class="hero-grid">
+          <div class="reveal in">
+            <p class="hero-eyebrow" data-i18n="hero.eyebrow">For FRITZ!DECT 301 &amp; 302 thermostats</p>
+            <h1><span data-i18n="hero.title1">Heat to the room's temperature,</span><br><span class="accent" data-i18n="hero.title2">not the radiator's.</span></h1>
+            <p class="sub" data-i18n="hero.sub">Bind a Bluetooth thermometer to each thermostat. FritzGate keeps correcting its offset on your FRITZ!Box, so every room reaches the temperature you set.</p>
+            <ul class="hero-points">
+              <li>
+                <i><svg viewBox="0 -960 960 960" fill="currentColor" aria-hidden="true"><path d="M480-80q-83 0-141.5-58.5T280-280q0-48 21-89.5t59-70.5v-320q0-50 35-85t85-35q50 0 85 35t35 85v320q38 29 59 70.5t21 89.5q0 83-58.5 141.5T480-80Zm-40-440h80v-40h-40v-40h40v-80h-40v-40h40v-40q0-17-11.5-28.5T480-800q-17 0-28.5 11.5T440-760v240Z"/></svg></i>
+                <span data-i18n="hero.p1">70+ Bluetooth sensors: Govee, Xiaomi, SwitchBot …</span>
+              </li>
+              <li>
+                <i><svg viewBox="0 -960 960 960" fill="currentColor" aria-hidden="true"><path d="M532-131q-6 5-12.5 8t-14.5 3q-8 0-16-3.5t-14-9.5q-41-44-60.5-90T395-320q0-37 11-78t38-106q23-57 32-87.5t9-56.5q0-34-15-63.5T423-771q-6-6-9.5-14t-3.5-16q0-8 3-14.5t8-12.5q6-6 13.5-9t15.5-3q8 0 15 3t13 8q44 41 65.5 86t21.5 95q0 35-10.5 73.5T518-474q-25 60-34 92t-9 61q0 35 14.5 67.5T534-188q5 6 8 13t3 15q0 8-3 15.5T532-131Zm195 0q-6 5-12.5 8t-14.5 3q-8 0-16-3.5t-14-9.5q-41-44-60.5-89.5T590-319q0-37 11-79t38-106q23-57 32-87t9-56q0-34-15-64.5T618-771q-6-6-9-13.5t-3-15.5q0-8 2.5-14.5T616-827q6-6 14-9.5t16-3.5q8 0 14.5 3t12.5 8q44 41 65.5 86t21.5 95q0 35-10.5 73.5T713-473q-25 60-34 92t-9 60q0 35 15 68.5t45 65.5q5 6 7.5 13t2.5 14q0 8-3 16t-10 13Zm-390 0q-6 5-12.5 8t-14.5 3q-8 0-16-3.5t-14-9.5q-41-44-60.5-89.5T200-319q0-37 11-79t38-106q23-57 32-87t9-56q0-34-15-64.5T228-771q-7-6-10-13.5t-3-15.5q0-8 3-15t8-13q6-6 13.5-9t15.5-3q8 0 15 3t13 8q44 41 65.5 85.5T370-648q0 35-10 73.5T324-474q-25 60-34 92t-9 61q0 35 14.5 68.5T340-187q5 6 7.5 13t2.5 14q0 8-3 16t-10 13Z"/></svg></i>
+                <span data-i18n="hero.p2">Only the offset changes, weekly plans stay untouched</span>
+              </li>
+              <li>
+                <i><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2"/><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4"/></svg></i>
+                <span data-i18n="hero.p3">ESP32-CAM board on the FRITZ!Box USB port</span>
+              </li>
+              <li>
+                <i><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 3h7v7H3zm2 2v3h3V5zM14 3h7v7h-7zm2 2v3h3V5zM3 14h7v7H3zm2 2v3h3v-3zM14 14h3v3h-3zm4 0h3v3h-3zm-4 4h3v3h-3zm4 4v-3h3v3z"/></svg></i>
+                <span data-i18n="hero.p4">Wi-Fi setup by showing a QR code to the camera</span>
+              </li>
+            </ul>
+            <div class="hero-cta">
+              <a class="btn btn-primary" href="demo/">
+                <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+                <span data-i18n="hero.cta1">Live demo</span>
+              </a>
+              <a class="btn btn-ghost" href="flasher/">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>
+                <span data-i18n="hero.cta2">Web installer</span>
+              </a>
+            </div>
+            <p class="hero-foot" data-i18n="hero.badge">Open source · Local · No cloud</p>
+          </div>
+
+          <div class="hero-devices reveal in">
+            <div class="device-browser">
+              <div class="bar" aria-hidden="true"><b></b><b></b><b></b><span>fritzgate</span></div>
+              <img src="assets/dashboard-light.png" width="1280" height="1208" alt="FritzGate dashboard in a browser, with a gauge for every thermostat" />
+            </div>
+            <div class="device-phone">
+              <div class="screen">
+                <img src="assets/phone-connect.png" width="768" height="1664" alt="Connecting FritzGate to the FRITZ!Box on a phone" />
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ PROBLEM ============ -->
+    <section class="section band" id="why">
+      <div class="wrap">
+        <div class="center reveal">
+          <p class="kicker" data-i18n="problem.kicker">The problem</p>
+          <h2 class="section-title" data-i18n="problem.title">The thermostat measures itself, not your room</h2>
+          <p class="section-lead" data-i18n="problem.lead">A radiator thermostat sits right on the hot valve, so it reads the heat of the pipe — not the air where you actually live. Rooms overshoot, corners stay cold, and energy is wasted on a temperature you never feel. FritzGate closes that gap.</p>
+        </div>
+        <div class="grid g-4" style="margin-top:46px;">
+          <div class="card hover reveal">
+            <div class="ic"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M14 14.8V5a2 2 0 1 0-4 0v9.8a4 4 0 1 0 4 0z"/></svg></div>
+            <h3 data-i18n="ben.comfort.t">Real comfort</h3>
+            <p data-i18n="ben.comfort.d">Rooms reach the temperature you actually set — measured where you sit, not at the radiator valve.</p>
+          </div>
+          <div class="card hover reveal">
+            <div class="ic"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M11 21 3 12.5h5L7 3l9 9h-5l1 9z"/></svg></div>
+            <h3 data-i18n="ben.save.t">Save energy</h3>
+            <p data-i18n="ben.save.d">No more overshooting. Heating eases off once the room is truly warm, trimming wasted gas and power.</p>
+          </div>
+          <div class="card hover reveal">
+            <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6z"/></svg></div>
+            <h3 data-i18n="ben.local.t">Stays local</h3>
+            <p data-i18n="ben.local.d">Everything runs on your own network. No cloud account, no subscription, no data leaving your home.</p>
+          </div>
+          <div class="card hover reveal">
+            <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8v4l3 2"/><circle cx="12" cy="12" r="9"/></svg></div>
+            <h3 data-i18n="ben.keep.t">Non-invasive</h3>
+            <p data-i18n="ben.keep.d">Your weekly schedules and FRITZ!Box settings stay exactly as they are — FritzGate only nudges the offset.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ HOW IT WORKS ============ -->
+    <section class="section" id="how">
+      <div class="wrap">
+        <div class="center reveal">
+          <p class="kicker" data-i18n="how.kicker">How it works</p>
+          <h2 class="section-title" data-i18n="how.title">Four quiet steps, every 30 seconds</h2>
+          <p class="section-lead" data-i18n="how.lead">FritzGate sits between your sensors and your FRITZ!Box and keeps the two honest with each other.</p>
+        </div>
+
+        <div class="grid g-4" style="margin-top:46px;">
+          <div class="card reveal">
+            <div class="num">1</div>
+            <h3 data-i18n="how.s1.t">Listen</h3>
+            <p data-i18n="how.s1.d">It passively picks up the Bluetooth broadcasts from your room sensors — temperature and humidity, every few seconds.</p>
+          </div>
+          <div class="card reveal">
+            <div class="num">2</div>
+            <h3 data-i18n="how.s2.t">Compare</h3>
+            <p data-i18n="how.s2.d">It logs into your FRITZ!Box, reads what each thermostat thinks the temperature is, and compares it to the real room value.</p>
+          </div>
+          <div class="card reveal">
+            <div class="num">3</div>
+            <h3 data-i18n="how.s3.t">Correct</h3>
+            <p data-i18n="how.s3.d">It writes a temperature offset to the thermostat so the FRITZ!Box regulates toward the true room temperature.</p>
+          </div>
+          <div class="card reveal">
+            <div class="num">4</div>
+            <h3 data-i18n="how.s4.t">Repeat</h3>
+            <p data-i18n="how.s4.d">A smoothed average avoids jitter, and it holds back when heating is off — then re-checks 30 seconds later.</p>
+          </div>
+        </div>
+
+        <!-- Diagram -->
+        <div class="diagram reveal">
+          <svg viewBox="0 0 1000 250" role="img" aria-labelledby="diagTitle">
+            <title id="diagTitle">Data flow: sensors to FritzGate to FRITZ!Box to thermostats</title>
+            <defs>
+              <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0 0 L10 5 L0 10 z" fill="var(--muted)"/>
+              </marker>
+            </defs>
+
+            <!-- Node 1 -->
+            <g>
+              <rect class="diag-card" x="16" y="78" width="192" height="94" rx="16"/>
+              <circle class="diag-dot" cx="44" cy="106" r="7"/>
+              <text class="diag-title" x="64" y="112" font-size="21" data-i18n="diag.n1">Room sensor</text>
+              <text class="diag-sub" x="40" y="146" font-size="16">Xiaomi · Govee · …</text>
+            </g>
+            <!-- Arrow 1 -->
+            <line class="diag-flow" x1="212" y1="125" x2="268" y2="125" marker-end="url(#arrow)"/>
+            <g><rect class="diag-pill" x="206" y="92" width="72" height="26" rx="13"/><text class="diag-pill-tx" x="242" y="110" font-size="14" text-anchor="middle">Bluetooth</text></g>
+
+            <!-- Node 2 -->
+            <g>
+              <rect class="diag-card" x="274" y="78" width="192" height="94" rx="16" stroke="var(--accent)" stroke-width="2"/>
+              <circle class="diag-dot" cx="302" cy="106" r="7"/>
+              <text class="diag-title" x="322" y="112" font-size="21">FritzGate</text>
+              <text class="diag-sub" x="298" y="146" font-size="16">ESP32-CAM</text>
+            </g>
+            <!-- Arrow 2 -->
+            <line class="diag-flow" x1="470" y1="125" x2="526" y2="125" marker-end="url(#arrow)"/>
+            <g><rect class="diag-pill" x="470" y="92" width="62" height="26" rx="13"/><text class="diag-pill-tx" x="501" y="110" font-size="14" text-anchor="middle">Wi-Fi</text></g>
+
+            <!-- Node 3 -->
+            <g>
+              <rect class="diag-card" x="532" y="78" width="192" height="94" rx="16"/>
+              <circle class="diag-dot c" cx="560" cy="106" r="7"/>
+              <text class="diag-title" x="580" y="112" font-size="21">FRITZ!Box</text>
+              <text class="diag-sub" x="556" y="146" font-size="16" data-i18n="diag.n3s">your router</text>
+            </g>
+            <!-- Arrow 3 -->
+            <line class="diag-flow" x1="728" y1="125" x2="784" y2="125" marker-end="url(#arrow)"/>
+            <g><rect class="diag-pill" x="726" y="92" width="62" height="26" rx="13"/><text class="diag-pill-tx" x="757" y="110" font-size="14" text-anchor="middle">DECT</text></g>
+
+            <!-- Node 4 -->
+            <g>
+              <rect class="diag-card" x="790" y="78" width="194" height="94" rx="16"/>
+              <circle class="diag-dot c" cx="818" cy="106" r="7"/>
+              <text class="diag-title" x="838" y="112" font-size="21" data-i18n="diag.n4">Thermostat</text>
+              <text class="diag-sub" x="814" y="146" font-size="16">FRITZ!DECT 301/302</text>
+            </g>
+          </svg>
+          <p class="diag-cap" data-i18n="diag.cap">FritzGate computes the offset from your trusted sensor and writes it back through the FRITZ!Box — no extra hub, no rewiring.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ FRITZ!DECT MODELS ============ -->
+    <section class="section band" id="models">
+      <div class="wrap">
+        <div class="center reveal">
+          <p class="kicker" data-i18n="models.kicker">Thermostats</p>
+          <h2 class="section-title" data-i18n="models.title">Works with your FRITZ!DECT thermostats</h2>
+          <p class="section-lead" data-i18n="models.lead">Already paired to your FRITZ!Box over DECT. FritzGate drives them through the router you already have.</p>
+        </div>
+        <div class="grid g-2" style="margin-top:42px;">
+          <div class="card hover reveal">
+            <div class="model-card">
+              <div class="pic" aria-hidden="true">
+                <svg viewBox="0 0 34 54" fill="none" stroke="var(--accent)" stroke-width="2"><rect x="3" y="3" width="28" height="48" rx="6"/><rect x="9" y="10" width="16" height="12" rx="2"/><circle cx="17" cy="38" r="7"/></svg>
+              </div>
+              <div>
+                <h3>FRITZ!DECT 301</h3>
+                <p data-i18n="models.301">Radiator thermostat with e-ink display. Fully supported — FritzGate reads its state and applies offset corrections.</p>
+                <span class="tag-ok"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"/></svg><span data-i18n="models.badge">Fully supported</span></span>
+              </div>
+            </div>
+          </div>
+          <div class="card hover reveal">
+            <div class="model-card">
+              <div class="pic" aria-hidden="true">
+                <svg viewBox="0 0 34 54" fill="none" stroke="var(--cool)" stroke-width="2"><rect x="3" y="3" width="28" height="48" rx="6"/><rect x="9" y="10" width="16" height="12" rx="2"/><circle cx="17" cy="38" r="7"/></svg>
+              </div>
+              <div>
+                <h3>FRITZ!DECT 302</h3>
+                <p data-i18n="models.302">The newer radiator thermostat with improved sensing and boost control. Fully supported, same way.</p>
+                <span class="tag-ok"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.2 4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4z"/></svg><span data-i18n="models.badge">Fully supported</span></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ SENSORS ============ -->
+    <section class="section" id="sensors">
+      <div class="wrap">
+        <div class="reveal">
+          <p class="kicker" data-i18n="sensors.kicker">Sensors</p>
+          <h2 class="section-title" data-i18n="sensors.title">70+ temperature sensors, one bridge</h2>
+          <p class="section-lead" data-i18n="sensors.lead">Already own a Xiaomi, Govee or SwitchBot sensor? Chances are it just works. FritzGate decodes the Bluetooth broadcasts of 70+ models from leading brands — pick whichever you like and place it where comfort matters.</p>
+        </div>
+
+        <div class="chips reveal">
+          <span class="chip"><span class="d" style="background:#ff6700"></span>Xiaomi</span>
+          <span class="chip"><span class="d" style="background:#1f6feb"></span>Govee</span>
+          <span class="chip"><span class="d" style="background:#22a699"></span>SwitchBot</span>
+          <span class="chip"><span class="d" style="background:#00b4c8"></span>Shelly</span>
+          <span class="chip"><span class="d" style="background:#e0245e"></span>Ruuvi</span>
+          <span class="chip"><span class="d" style="background:#f7a700"></span>Inkbird</span>
+          <span class="chip"><span class="d" style="background:#6c5ce7"></span>ThermoPro</span>
+          <span class="chip"><span class="d" style="background:#2ecc71"></span>Qingping</span>
+          <span class="chip"><span class="d" style="background:#e74c3c"></span>Sensirion</span>
+          <span class="chip"><span class="d" style="background:#3498db"></span>BlueMaestro</span>
+          <span class="chip"><span class="d" style="background:#9b59b6"></span>Oria / Brifit</span>
+          <span class="chip"><span class="d" style="background:#16a085"></span>April Brother</span>
+          <span class="chip more" data-i18n="sensors.more">+ 60 more models</span>
+        </div>
+
+        <div class="sensors-foot reveal">
+          <a class="btn btn-ghost" href="https://decoder.theengs.io/devices/devices.html" target="_blank" rel="noopener">
+            <span data-i18n="sensors.link">See every supported device</span>
+            <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M5 12h12l-5-5 1.4-1.4L21.8 12l-8.4 6.4L12 17l5-5H5z"/></svg>
+          </a>
+          <span class="powered" data-i18n="sensors.powered">Decoding powered by the open-source Theengs project.</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ DEMO ============ -->
+    <section class="section band" id="demo">
+      <div class="wrap">
+        <div class="demo-grid">
+          <div class="reveal">
+            <p class="kicker" data-i18n="demo.kicker">See it live</p>
+            <h2 class="section-title" data-i18n="demo.title">A dashboard that fits in your browser</h2>
+            <p class="section-lead" data-i18n="demo.lead">The whole web interface is served straight from the device — no app to install. See every thermostat next to the room sensor it follows, hold a gauge to choose that sensor, and connect your FRITZ!Box with one button. Try the interactive demo right now.</p>
+            <div style="margin-top:26px;display:flex;flex-wrap:wrap;gap:12px;">
+              <a class="btn btn-primary" href="demo/">
+                <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+                <span data-i18n="demo.cta">Open the live demo</span>
+              </a>
+            </div>
+          </div>
+          <div class="reveal">
+            <div class="shot">
+              <img class="shot-light" src="assets/dashboard-light.png" width="1280" height="1208" loading="lazy" alt="FritzGate dashboard with a gauge for every thermostat and the sensors no thermostat uses" />
+              <img class="shot-dark" src="assets/dashboard-dark.png" width="1280" height="1208" loading="lazy" alt="FritzGate dashboard with a gauge for every thermostat and the sensors no thermostat uses" />
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ INSTALL ============ -->
+    <section class="section" id="install">
+      <div class="wrap">
+        <div class="center reveal">
+          <p class="kicker" data-i18n="install.kicker">Installation</p>
+          <h2 class="section-title" data-i18n="install.title">Up and running in an afternoon</h2>
+          <p class="section-lead" data-i18n="install.lead">No soldering, no hub, no cloud sign-up — and no developer tools: the web installer flashes the board right from your browser.</p>
+        </div>
+
+        <div class="grid g-3" style="margin-top:46px;">
+          <div class="card reveal"><div class="num">1</div><h3 data-i18n="inst.s1.t">Get the hardware</h3><p data-i18n="inst.s1.d">An Ai Thinker ESP32-CAM board (~€8) and at least one supported Bluetooth sensor.</p></div>
+          <div class="card reveal"><div class="num">2</div><h3 data-i18n="inst.s2.t">Flash from your browser</h3><p data-i18n="inst.s2.d">Connect the board over USB and click Install in the web installer. Chrome or Edge is all you need.</p></div>
+          <div class="card reveal"><div class="num">3</div><h3 data-i18n="inst.s3.t">Power it anywhere</h3><p data-i18n="inst.s3.d">A USB port does the job — even the one on the back of your FRITZ!Box. No extra adapter needed.</p></div>
+          <div class="card reveal"><div class="num">4</div><h3 data-i18n="inst.s4.t">Scan Wi-Fi by QR</h3><p data-i18n="inst.s4.d">On first boot, hold a Wi-Fi QR code in front of the camera and FritzGate joins your network automatically.</p></div>
+          <div class="card reveal"><div class="num">5</div><h3 data-i18n="inst.s5.t">Connect &amp; relax</h3><p data-i18n="inst.s5.d">Open http://fritzgate, click Connect to FRITZ!Box, then hold a thermostat's gauge to pick its room sensor. Done.</p></div>
+          <div class="card reveal" style="display:flex;flex-direction:column;justify-content:center;background:linear-gradient(135deg, color-mix(in srgb, var(--accent) 10%, var(--surface)), var(--surface));">
+            <h3 data-i18n="install.cta.t">Ready to flash?</h3>
+            <p style="margin-bottom:16px;" data-i18n="install.cta.d">The web installer puts the latest release on your board. Prefer PlatformIO? The full guide lives in the repository.</p>
+            <div style="display:flex;flex-wrap:wrap;align-items:center;gap:10px 18px;">
+              <a class="btn btn-primary" href="flasher/" data-i18n="install.cta.b">Open the web installer</a>
+              <a href="https://github.com/elebree/fritzgate#installation" target="_blank" rel="noopener" data-i18n="install.cta.guide">Full installation guide</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ FAQ ============ -->
+    <section class="section band" id="faq">
+      <div class="wrap">
+        <div class="center reveal">
+          <p class="kicker" data-i18n="faq.kicker">FAQ</p>
+          <h2 class="section-title" data-i18n="faq.title">Questions, answered</h2>
+        </div>
+        <div class="faq">
+          <details class="q reveal"><summary><span data-i18n="faq.q1">Will it mess with my heating schedule?</span><span class="plus" aria-hidden="true"></span></summary><div class="a" data-i18n="faq.a1">No. FritzGate never touches your weekly programs or other FRITZ!Box settings. It only adjusts the thermostat's temperature offset — everything else stays exactly as you configured it.</div></details>
+          <details class="q reveal"><summary><span data-i18n="faq.q2">Do I need a FRITZ!Box?</span><span class="plus" aria-hidden="true"></span></summary><div class="a" data-i18n="faq.a2">For thermostat control, yes — the thermostats are FRITZ!DECT devices paired to it. But even without one, FritzGate still works as a local dashboard to monitor temperature and humidity from your sensors.</div></details>
+          <details class="q reveal"><summary><span data-i18n="faq.q3">Is my data sent to the cloud?</span><span class="plus" aria-hidden="true"></span></summary><div class="a" data-i18n="faq.a3">Never. FritzGate runs entirely on your local network. There is no account, no subscription, and nothing phones home. Your FRITZ!Box credentials are stored only on the device.</div></details>
+          <details class="q reveal"><summary><span data-i18n="faq.q4">Which sensors can I use?</span><span class="plus" aria-hidden="true"></span></summary><div class="a" data-i18n="faq.a4">Over 70 Bluetooth models from brands like Xiaomi, Govee, SwitchBot, Shelly, Ruuvi, Inkbird and ThermoPro. If it is on the Theengs compatibility list, FritzGate can read it.</div></details>
+          <details class="q reveal"><summary><span data-i18n="faq.q5">How is my FRITZ!Box password protected?</span><span class="plus" aria-hidden="true"></span></summary><div class="a" data-i18n="faq.a5">Login uses the FRITZ!Box PBKDF2 challenge-response scheme — your password is never sent in the clear. Credentials live only in the device's local storage.</div></details>
+          <details class="q reveal"><summary><span data-i18n="faq.q6">Do I still need the camera after setup?</span><span class="plus" aria-hidden="true"></span></summary><div class="a" data-i18n="faq.a6">No. The camera is only used once, to scan a Wi-Fi QR code during first setup. You can also set the credentials manually in code.</div></details>
+          <details class="q reveal"><summary><span data-i18n="faq.q7">What does it cost to build?</span><span class="plus" aria-hidden="true"></span></summary><div class="a" data-i18n="faq.a7">Roughly the price of an ESP32-CAM board plus a sensor — typically under €20 in total. The software is free and open source under the MIT license.</div></details>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ FINAL CTA ============ -->
+    <section class="section">
+      <div class="wrap">
+        <div class="cta-band reveal">
+          <h2 data-i18n="cta.title">Give your thermostats a sense of the room</h2>
+          <p data-i18n="cta.sub">Open source, local, and built on hardware that costs less than a takeaway. Flash it from your browser and start today.</p>
+          <div style="display:flex;flex-wrap:wrap;gap:12px;justify-content:center;">
+            <a class="btn btn-primary" href="flasher/">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>
+              <span data-i18n="cta.b1">Open the web installer</span>
+            </a>
+            <a class="btn btn-ghost" href="demo/" data-i18n="cta.b2">Try the live demo</a>
+            <a class="btn btn-ghost" href="https://github.com/elebree/fritzgate" target="_blank" rel="noopener" data-i18n="cta.b3">Get it on GitHub</a>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ============ FOOTER ============ -->
+  <footer class="site">
+    <div class="wrap">
+      <div class="foot-grid">
+        <div style="max-width:300px;">
+          <a class="brand" href="#top" style="margin-bottom:12px;">
+            <span class="mark" aria-hidden="true"><svg viewBox="0 0 32 32"><path fill="currentColor" d="M16 2c-1.7 0-3 1.3-3 3v11.4a6 6 0 1 0 6 0V5c0-1.7-1.3-3-3-3zm0 24a3 3 0 0 1-1.5-5.6l.5-.3V7a1 1 0 0 1 2 0v13.1l.5.3A3 3 0 0 1 16 26z"/></svg></span>
+            FritzGate
+          </a>
+          <p style="color:var(--muted);font-size:.92rem;margin:0;" data-i18n="footer.tagline">Smarter, local heating control for your FRITZ!Box — built on an ESP32 and the sensors you already own.</p>
+        </div>
+        <div class="foot-links">
+          <div class="foot-col">
+            <h4 data-i18n="footer.project">Project</h4>
+            <a href="https://github.com/elebree/fritzgate" target="_blank" rel="noopener">GitHub</a>
+            <a href="demo/" data-i18n="footer.demo">Live demo</a>
+            <a href="flasher/" data-i18n="footer.flasher">Web installer</a>
+            <a href="https://github.com/elebree/fritzgate/blob/main/LICENSE" target="_blank" rel="noopener" data-i18n="footer.license">License (MIT)</a>
+          </div>
+          <div class="foot-col">
+            <h4 data-i18n="footer.docs">Docs</h4>
+            <a href="https://github.com/elebree/fritzgate/blob/main/README.md" target="_blank" rel="noopener" data-i18n="footer.readmeEn">Read me (English)</a>
+            <a href="https://github.com/elebree/fritzgate/blob/main/README.de.md" target="_blank" rel="noopener" data-i18n="footer.readmeDe">Read me (Deutsch)</a>
+            <a href="https://github.com/elebree/fritzgate#installation" target="_blank" rel="noopener" data-i18n="footer.setup">Installation guide</a>
+          </div>
+          <div class="foot-col">
+            <h4 data-i18n="footer.hardware">Hardware</h4>
+            <a href="https://decoder.theengs.io/devices/devices.html" target="_blank" rel="noopener" data-i18n="footer.sensors">Supported sensors</a>
+            <a href="https://platformio.org/" target="_blank" rel="noopener">PlatformIO</a>
+            <a href="https://decoder.theengs.io/" target="_blank" rel="noopener">Theengs Decoder</a>
+          </div>
+        </div>
+      </div>
+      <div class="foot-bottom">
+        <span>© 2025 elebree · MIT License</span>
+        <span class="disclaimer" data-i18n="footer.disclaimer">FRITZ!Box and FRITZ!DECT are trademarks of AVM GmbH. FritzGate is an independent, community project and is not affiliated with or endorsed by AVM.</span>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    (function () {
+      "use strict";
+
+      /* ---------- i18n dictionary ---------- */
+      var I18N = {
+        en: {
+          "nav.how": "How it works", "nav.models": "Thermostats", "nav.sensors": "Sensors", "nav.install": "Install", "nav.faq": "FAQ",
+          "hero.badge": "Open source · Local · No cloud",
+          "hero.eyebrow": "For FRITZ!DECT 301 & 302 thermostats",
+          "hero.title1": "Heat to the room's temperature,",
+          "hero.title2": "not the radiator's.",
+          "hero.sub": "Bind a Bluetooth thermometer to each thermostat. FritzGate keeps correcting its offset on your FRITZ!Box, so every room reaches the temperature you set.",
+          "hero.p1": "70+ Bluetooth sensors: Govee, Xiaomi, SwitchBot …",
+          "hero.p2": "Only the offset changes, weekly plans stay untouched",
+          "hero.p3": "ESP32-CAM board on the FRITZ!Box USB port",
+          "hero.p4": "Wi-Fi setup by showing a QR code to the camera",
+          "hero.cta1": "Live demo",
+          "hero.cta2": "Web installer",
+          "problem.kicker": "The problem", "problem.title": "The thermostat measures itself, not your room",
+          "problem.lead": "A radiator thermostat sits right on the hot valve, so it reads the heat of the pipe — not the air where you actually live. Rooms overshoot, corners stay cold, and energy is wasted on a temperature you never feel. FritzGate closes that gap.",
+          "ben.comfort.t": "Real comfort", "ben.comfort.d": "Rooms reach the temperature you actually set — measured where you sit, not at the radiator valve.",
+          "ben.save.t": "Save energy", "ben.save.d": "No more overshooting. Heating eases off once the room is truly warm, trimming wasted gas and power.",
+          "ben.local.t": "Stays local", "ben.local.d": "Everything runs on your own network. No cloud account, no subscription, no data leaving your home.",
+          "ben.keep.t": "Non-invasive", "ben.keep.d": "Your weekly schedules and FRITZ!Box settings stay exactly as they are — FritzGate only nudges the offset.",
+          "how.kicker": "How it works", "how.title": "Four quiet steps, every 30 seconds",
+          "how.lead": "FritzGate sits between your sensors and your FRITZ!Box and keeps the two honest with each other.",
+          "how.s1.t": "Listen", "how.s1.d": "It passively picks up the Bluetooth broadcasts from your room sensors — temperature and humidity, every few seconds.",
+          "how.s2.t": "Compare", "how.s2.d": "It logs into your FRITZ!Box, reads what each thermostat thinks the temperature is, and compares it to the real room value.",
+          "how.s3.t": "Correct", "how.s3.d": "It writes a temperature offset to the thermostat so the FRITZ!Box regulates toward the true room temperature.",
+          "how.s4.t": "Repeat", "how.s4.d": "A smoothed average avoids jitter, and it holds back when heating is off — then re-checks 30 seconds later.",
+          "diag.n1": "Room sensor", "diag.n3s": "your router", "diag.n4": "Thermostat",
+          "diag.cap": "FritzGate computes the offset from your trusted sensor and writes it back through the FRITZ!Box — no extra hub, no rewiring.",
+          "models.kicker": "Thermostats", "models.title": "Works with your FRITZ!DECT thermostats",
+          "models.lead": "Already paired to your FRITZ!Box over DECT. FritzGate drives them through the router you already have.",
+          "models.301": "Radiator thermostat with e-ink display. Fully supported — FritzGate reads its state and applies offset corrections.",
+          "models.302": "The newer radiator thermostat with improved sensing and boost control. Fully supported, same way.",
+          "models.badge": "Fully supported",
+          "sensors.kicker": "Sensors", "sensors.title": "70+ temperature sensors, one bridge",
+          "sensors.lead": "Already own a Xiaomi, Govee or SwitchBot sensor? Chances are it just works. FritzGate decodes the Bluetooth broadcasts of 70+ models from leading brands — pick whichever you like and place it where comfort matters.",
+          "sensors.more": "+ 60 more models", "sensors.link": "See every supported device", "sensors.powered": "Decoding powered by the open-source Theengs project.",
+          "demo.kicker": "See it live", "demo.title": "A dashboard that fits in your browser",
+          "demo.lead": "The whole web interface is served straight from the device — no app to install. See every thermostat next to the room sensor it follows, hold a gauge to choose that sensor, and connect your FRITZ!Box with one button. Try the interactive demo right now.",
+          "demo.cta": "Open the live demo",
+          "install.kicker": "Installation", "install.title": "Up and running in an afternoon",
+          "install.lead": "No soldering, no hub, no cloud sign-up — and no developer tools: the web installer flashes the board right from your browser.",
+          "inst.s1.t": "Get the hardware", "inst.s1.d": "An Ai Thinker ESP32-CAM board (~€8) and at least one supported Bluetooth sensor.",
+          "inst.s2.t": "Flash from your browser", "inst.s2.d": "Connect the board over USB and click Install in the web installer. Chrome or Edge is all you need.",
+          "inst.s3.t": "Power it anywhere", "inst.s3.d": "A USB port does the job — even the one on the back of your FRITZ!Box. No extra adapter needed.",
+          "inst.s4.t": "Scan Wi-Fi by QR", "inst.s4.d": "On first boot, hold a Wi-Fi QR code in front of the camera and FritzGate joins your network automatically.",
+          "inst.s5.t": "Connect & relax", "inst.s5.d": "Open http://fritzgate, click Connect to FRITZ!Box, then hold a thermostat's gauge to pick its room sensor. Done.",
+          "install.cta.t": "Ready to flash?", "install.cta.d": "The web installer puts the latest release on your board. Prefer PlatformIO? The full guide lives in the repository.", "install.cta.b": "Open the web installer", "install.cta.guide": "Full installation guide",
+          "faq.kicker": "FAQ", "faq.title": "Questions, answered",
+          "faq.q1": "Will it mess with my heating schedule?",
+          "faq.a1": "No. FritzGate never touches your weekly programs or other FRITZ!Box settings. It only adjusts the thermostat's temperature offset — everything else stays exactly as you configured it.",
+          "faq.q2": "Do I need a FRITZ!Box?",
+          "faq.a2": "For thermostat control, yes — the thermostats are FRITZ!DECT devices paired to it. But even without one, FritzGate still works as a local dashboard to monitor temperature and humidity from your sensors.",
+          "faq.q3": "Is my data sent to the cloud?",
+          "faq.a3": "Never. FritzGate runs entirely on your local network. There is no account, no subscription, and nothing phones home. Your FRITZ!Box credentials are stored only on the device.",
+          "faq.q4": "Which sensors can I use?",
+          "faq.a4": "Over 70 Bluetooth models from brands like Xiaomi, Govee, SwitchBot, Shelly, Ruuvi, Inkbird and ThermoPro. If it is on the Theengs compatibility list, FritzGate can read it.",
+          "faq.q5": "How is my FRITZ!Box password protected?",
+          "faq.a5": "Login uses the FRITZ!Box PBKDF2 challenge-response scheme — your password is never sent in the clear. Credentials live only in the device's local storage.",
+          "faq.q6": "Do I still need the camera after setup?",
+          "faq.a6": "No. The camera is only used once, to scan a Wi-Fi QR code during first setup. You can also set the credentials manually in code.",
+          "faq.q7": "What does it cost to build?",
+          "faq.a7": "Roughly the price of an ESP32-CAM board plus a sensor — typically under €20 in total. The software is free and open source under the MIT license.",
+          "cta.title": "Give your thermostats a sense of the room",
+          "cta.sub": "Open source, local, and built on hardware that costs less than a takeaway. Flash it from your browser and start today.",
+          "cta.b1": "Open the web installer", "cta.b2": "Try the live demo", "cta.b3": "Get it on GitHub",
+          "footer.tagline": "Smarter, local heating control for your FRITZ!Box — built on an ESP32 and the sensors you already own.",
+          "footer.project": "Project", "footer.demo": "Live demo", "footer.flasher": "Web installer", "footer.license": "License (MIT)",
+          "footer.docs": "Docs", "footer.readmeEn": "Read me (English)", "footer.readmeDe": "Read me (Deutsch)", "footer.setup": "Installation guide",
+          "footer.hardware": "Hardware", "footer.sensors": "Supported sensors",
+          "footer.disclaimer": "FRITZ!Box and FRITZ!DECT are trademarks of AVM GmbH. FritzGate is an independent, community project and is not affiliated with or endorsed by AVM.",
+          "_meta.title": "FritzGate — Smarter heating for your FRITZ!Box",
+          "_meta.desc": "FritzGate teaches your FRITZ!DECT thermostats the real room temperature using the Bluetooth sensors you already own. Open source, local, no cloud."
+        },
+        de: {
+          "nav.how": "So funktioniert's", "nav.models": "Thermostate", "nav.sensors": "Sensoren", "nav.install": "Installation", "nav.faq": "FAQ",
+          "hero.badge": "Open Source · Lokal · Keine Cloud",
+          "hero.eyebrow": "Für FRITZ!DECT 301 & 302 Thermostate",
+          "hero.title1": "Heize nach dem Raum,",
+          "hero.title2": "nicht nach dem Heizkörper.",
+          "hero.sub": "Verknüpfe jeden Thermostat mit einem Bluetooth-Thermometer. FritzGate passt laufend seinen Offset auf der FRITZ!Box an, damit jeder Raum die Solltemperatur erreicht.",
+          "hero.p1": "70+ Bluetooth-Sensoren: Govee, Xiaomi, SwitchBot …",
+          "hero.p2": "Nur der Offset ändert sich – Wochenpläne bleiben",
+          "hero.p3": "ESP32-CAM-Board am USB-Port der FRITZ!Box",
+          "hero.p4": "WLAN-Einrichtung per QR-Code vor der Kamera",
+          "hero.cta1": "Live-Demo",
+          "hero.cta2": "Web-Installer",
+          "problem.kicker": "Das Problem", "problem.title": "Der Thermostat misst sich selbst – nicht deinen Raum",
+          "problem.lead": "Ein Heizkörperthermostat sitzt direkt am heißen Ventil und misst die Wärme des Rohrs – nicht die Luft, in der du dich aufhältst. Räume überhitzen, Ecken bleiben kalt, und Energie wird für eine Temperatur verschwendet, die du nie spürst. FritzGate schließt diese Lücke.",
+          "ben.comfort.t": "Echter Komfort", "ben.comfort.d": "Räume erreichen die Temperatur, die du einstellst – gemessen dort, wo du sitzt, nicht am Ventil.",
+          "ben.save.t": "Energie sparen", "ben.save.d": "Kein Überheizen mehr. Die Heizung nimmt sich zurück, sobald der Raum wirklich warm ist – das spart Gas und Strom.",
+          "ben.local.t": "Bleibt lokal", "ben.local.d": "Alles läuft in deinem eigenen Netzwerk. Kein Cloud-Konto, kein Abo, keine Daten verlassen dein Zuhause.",
+          "ben.keep.t": "Nicht-invasiv", "ben.keep.d": "Deine Wochenpläne und FRITZ!Box-Einstellungen bleiben genau so – FritzGate passt nur den Offset an.",
+          "how.kicker": "So funktioniert's", "how.title": "Vier leise Schritte, alle 30 Sekunden",
+          "how.lead": "FritzGate sitzt zwischen deinen Sensoren und deiner FRITZ!Box und hält beide ehrlich zueinander.",
+          "how.s1.t": "Zuhören", "how.s1.d": "Es empfängt passiv die Bluetooth-Signale deiner Raumsensoren – Temperatur und Luftfeuchte, alle paar Sekunden.",
+          "how.s2.t": "Vergleichen", "how.s2.d": "Es meldet sich an deiner FRITZ!Box an, liest die vom Thermostat gemessene Temperatur und vergleicht sie mit dem echten Raumwert.",
+          "how.s3.t": "Korrigieren", "how.s3.d": "Es schreibt einen Temperatur-Offset in den Thermostat, damit die FRITZ!Box auf die echte Raumtemperatur regelt.",
+          "how.s4.t": "Wiederholen", "how.s4.d": "Ein geglätteter Mittelwert vermeidet Schwankungen, und bei abgeschalteter Heizung hält es sich zurück – 30 Sekunden später prüft es erneut.",
+          "diag.n1": "Raumsensor", "diag.n3s": "dein Router", "diag.n4": "Thermostat",
+          "diag.cap": "FritzGate berechnet den Offset aus deinem vertrauten Sensor und schreibt ihn über die FRITZ!Box zurück – kein zusätzlicher Hub, keine neue Verkabelung.",
+          "models.kicker": "Thermostate", "models.title": "Passt zu deinen FRITZ!DECT-Thermostaten",
+          "models.lead": "Bereits über DECT mit deiner FRITZ!Box gekoppelt. FritzGate steuert sie über den Router, den du schon hast.",
+          "models.301": "Heizkörperthermostat mit E-Ink-Display. Voll unterstützt – FritzGate liest den Status und wendet Offset-Korrekturen an.",
+          "models.302": "Das neuere Heizkörperthermostat mit verbesserter Messung und Boost-Steuerung. Genauso voll unterstützt.",
+          "models.badge": "Voll unterstützt",
+          "sensors.kicker": "Sensoren", "sensors.title": "70+ Temperatursensoren, eine Brücke",
+          "sensors.lead": "Du hast bereits einen Xiaomi-, Govee- oder SwitchBot-Sensor? Die Chancen stehen gut, dass er einfach funktioniert. FritzGate dekodiert die Bluetooth-Signale von 70+ Modellen führender Marken – nimm, was dir gefällt, und platziere es dort, wo Komfort zählt.",
+          "sensors.more": "+ 60 weitere Modelle", "sensors.link": "Alle unterstützten Geräte ansehen", "sensors.powered": "Dekodierung dank des Open-Source-Projekts Theengs.",
+          "demo.kicker": "Live ansehen", "demo.title": "Ein Dashboard, das in deinen Browser passt",
+          "demo.lead": "Die komplette Weboberfläche kommt direkt vom Gerät – keine App nötig. Sieh jeden Thermostat neben dem Raumsensor, dem er folgt, halte seine Anzeige gedrückt, um diesen Sensor zu wählen, und verbinde deine FRITZ!Box mit einem Klick. Probier die interaktive Demo gleich aus.",
+          "demo.cta": "Live-Demo öffnen",
+          "install.kicker": "Installation", "install.title": "An einem Nachmittag startklar",
+          "install.lead": "Kein Löten, kein Hub, keine Cloud-Anmeldung – und keine Entwicklerwerkzeuge: Der Web-Installer flasht das Board direkt aus deinem Browser.",
+          "inst.s1.t": "Hardware besorgen", "inst.s1.d": "Ein Ai Thinker ESP32-CAM-Board (~8 €) und mindestens ein unterstützter Bluetooth-Sensor.",
+          "inst.s2.t": "Im Browser flashen", "inst.s2.d": "Schließe das Board per USB an und klicke im Web-Installer auf Installieren. Chrome oder Edge genügen.",
+          "inst.s3.t": "Überall mit Strom versorgen", "inst.s3.d": "Ein USB-Port genügt – sogar der an der Rückseite deiner FRITZ!Box. Kein zusätzliches Netzteil nötig.",
+          "inst.s4.t": "WLAN per QR scannen", "inst.s4.d": "Beim ersten Start hältst du einen WLAN-QR-Code vor die Kamera und FritzGate verbindet sich automatisch mit deinem Netzwerk.",
+          "inst.s5.t": "Verbinden & entspannen", "inst.s5.d": "http://fritzgate öffnen, auf „Connect to FRITZ!Box“ klicken und dann die Anzeige eines Thermostats gedrückt halten, um seinen Raumsensor zu wählen. Fertig.",
+          "install.cta.t": "Bereit zum Flashen?", "install.cta.d": "Der Web-Installer spielt das aktuelle Release auf dein Board. Lieber PlatformIO? Die vollständige Anleitung liegt im Repository.", "install.cta.b": "Web-Installer öffnen", "install.cta.guide": "Vollständige Anleitung",
+          "faq.kicker": "FAQ", "faq.title": "Fragen, beantwortet",
+          "faq.q1": "Verändert es meinen Heizplan?",
+          "faq.a1": "Nein. FritzGate fasst deine Wochenpläne oder andere FRITZ!Box-Einstellungen nie an. Es passt nur den Temperatur-Offset des Thermostats an – alles andere bleibt genau so, wie du es eingerichtet hast.",
+          "faq.q2": "Brauche ich eine FRITZ!Box?",
+          "faq.a2": "Für die Thermostatsteuerung ja – die Thermostate sind FRITZ!DECT-Geräte, die damit gekoppelt sind. Aber auch ohne funktioniert FritzGate als lokales Dashboard zur Überwachung von Temperatur und Luftfeuchte deiner Sensoren.",
+          "faq.q3": "Werden meine Daten in die Cloud gesendet?",
+          "faq.a3": "Niemals. FritzGate läuft vollständig in deinem lokalen Netzwerk. Kein Konto, kein Abo, nichts funkt nach Hause. Deine FRITZ!Box-Zugangsdaten werden nur auf dem Gerät gespeichert.",
+          "faq.q4": "Welche Sensoren kann ich nutzen?",
+          "faq.a4": "Über 70 Bluetooth-Modelle von Marken wie Xiaomi, Govee, SwitchBot, Shelly, Ruuvi, Inkbird und ThermoPro. Steht es auf der Theengs-Kompatibilitätsliste, kann FritzGate es lesen.",
+          "faq.q5": "Wie ist mein FRITZ!Box-Passwort geschützt?",
+          "faq.a5": "Die Anmeldung nutzt das PBKDF2-Challenge-Response-Verfahren der FRITZ!Box – dein Passwort wird nie im Klartext übertragen. Die Zugangsdaten liegen nur im lokalen Speicher des Geräts.",
+          "faq.q6": "Brauche ich die Kamera nach der Einrichtung noch?",
+          "faq.a6": "Nein. Die Kamera wird nur einmalig verwendet, um beim ersten Start einen WLAN-QR-Code zu scannen. Die Zugangsdaten lassen sich auch manuell im Code setzen.",
+          "faq.q7": "Was kostet der Nachbau?",
+          "faq.a7": "Etwa den Preis eines ESP32-CAM-Boards plus eines Sensors – meist unter 20 € insgesamt. Die Software ist kostenlos und quelloffen unter der MIT-Lizenz.",
+          "cta.title": "Gib deinen Thermostaten ein Gespür für den Raum",
+          "cta.sub": "Open Source, lokal und auf Hardware gebaut, die weniger kostet als ein Essen zum Mitnehmen. Spiel FritzGate direkt aus dem Browser auf und leg heute los.",
+          "cta.b1": "Web-Installer öffnen", "cta.b2": "Live-Demo testen", "cta.b3": "Auf GitHub holen",
+          "footer.tagline": "Intelligentere, lokale Heizungssteuerung für deine FRITZ!Box – gebaut auf einem ESP32 und den Sensoren, die du schon hast.",
+          "footer.project": "Projekt", "footer.demo": "Live-Demo", "footer.flasher": "Web-Installer", "footer.license": "Lizenz (MIT)",
+          "footer.docs": "Doku", "footer.readmeEn": "Read me (Englisch)", "footer.readmeDe": "Read me (Deutsch)", "footer.setup": "Installationsanleitung",
+          "footer.hardware": "Hardware", "footer.sensors": "Unterstützte Sensoren",
+          "footer.disclaimer": "FRITZ!Box und FRITZ!DECT sind Marken der AVM GmbH. FritzGate ist ein unabhängiges Community-Projekt und steht in keiner Verbindung zu AVM.",
+          "_meta.title": "FritzGate — Intelligenter heizen mit deiner FRITZ!Box",
+          "_meta.desc": "FritzGate bringt deinen FRITZ!DECT-Thermostaten die echte Raumtemperatur bei – mit den Bluetooth-Sensoren, die du schon hast. Open Source, lokal, keine Cloud."
+        }
+      };
+
+      /* ---------- storage helpers (safe) ---------- */
+      function store(key, val) { try { if (val === undefined) return localStorage.getItem(key); localStorage.setItem(key, val); } catch (e) { return null; } }
+
+      var root = document.documentElement;
+
+      /* ---------- language ---------- */
+      function applyLang(lang) {
+        if (lang !== "de") lang = "en";
+        var dict = I18N[lang];
+        document.querySelectorAll("[data-i18n]").forEach(function (el) {
+          var k = el.getAttribute("data-i18n");
+          if (dict[k] != null) el.textContent = dict[k];
+        });
+        root.setAttribute("lang", lang);
+        document.title = dict["_meta.title"];
+        var md = document.getElementById("metaDesc");
+        if (md) md.setAttribute("content", dict["_meta.desc"]);
+        // button shows the language you can switch TO
+        var label = document.getElementById("langLabel");
+        if (label) label.textContent = lang === "de" ? "EN" : "DE";
+        store("fg-lang", lang);
+      }
+
+      var savedLang = store("fg-lang");
+      var initialLang = savedLang || ((navigator.language || "en").toLowerCase().indexOf("de") === 0 ? "de" : "en");
+      applyLang(initialLang);
+
+      document.getElementById("langBtn").addEventListener("click", function () {
+        applyLang(root.getAttribute("lang") === "de" ? "en" : "de");
+      });
+
+      /* ---------- theme ---------- */
+      var savedTheme = store("fg-theme");
+      if (savedTheme === "dark" || savedTheme === "light") root.setAttribute("data-theme", savedTheme);
+      else root.removeAttribute("data-theme");
+
+      function currentIsDark() {
+        var t = root.getAttribute("data-theme");
+        if (t === "dark") return true;
+        if (t === "light") return false;
+        return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+      }
+      document.getElementById("themeBtn").addEventListener("click", function () {
+        var next = currentIsDark() ? "light" : "dark";
+        root.setAttribute("data-theme", next);
+        store("fg-theme", next);
+      });
+
+      /* ---------- sticky header shadow ---------- */
+      var header = document.getElementById("siteHeader");
+      function onScroll() { header.classList.toggle("scrolled", window.scrollY > 8); }
+      onScroll();
+      window.addEventListener("scroll", onScroll, { passive: true });
+
+      /* ---------- reveal on scroll ---------- */
+      var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      var reveals = document.querySelectorAll(".reveal:not(.in)");
+      if (reduce || !("IntersectionObserver" in window)) {
+        reveals.forEach(function (el) { el.classList.add("in"); });
+      } else {
+        var io = new IntersectionObserver(function (entries) {
+          entries.forEach(function (e) {
+            if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); }
+          });
+        }, { rootMargin: "0px 0px -8% 0px", threshold: 0.08 });
+        reveals.forEach(function (el) { io.observe(el); });
+      }
+    })();
+  </script>
+</body>
+</html>
