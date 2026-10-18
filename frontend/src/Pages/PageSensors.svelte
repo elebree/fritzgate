@@ -1,5 +1,10 @@
 <script lang="ts">
-  import type { DeviceStatus, SensorStatus, StatusData } from "../interfaces";
+  import {
+    Status,
+    type DeviceStatus,
+    type SensorStatus,
+    type StatusData,
+  } from "../interfaces";
   import settingsIcon from "../assets/settings.svg";
   import Icon from "../lib/Icon.svelte";
   import WaitBox from "../lib/WaitBox.svelte";
@@ -12,6 +17,9 @@
   let timestamp: number = 0;
 
   $: updateSensorsAndTimestamp(data);
+  $: fritzStatus = data?.fritz?.status;
+  $: fritzConnecting =
+    fritzStatus === Status.configured || fritzStatus === Status.connecting;
   $: unboundSensors = (sensors ?? []).filter(
     (sensor) => !thermostats.some((v) => v.referenceSensor == sensor.id)
   );
@@ -38,7 +46,7 @@
     message="trying to connect to the gateway"
     details="this buddy gossips too much with the sensors"
   />
-{:else if sensors.length === 0 && thermostats.length === 0}
+{:else if sensors.length === 0 && thermostats.length === 0 && fritzStatus === Status.connected}
   <WaitBox
     message="trying hard to find sensors nearby"
     details="FritzGate uses the Theengs Decoder to support over 70 models of temperature sensors."
@@ -54,7 +62,18 @@
         <small>hold a gauge to configure it</small>
       {/if}
     </header>
-    {#if thermostats.length === 0}
+    {#if fritzStatus === Status.unconfigured || fritzStatus === Status.failure}
+      <div class="connect">
+        <p>
+          {fritzStatus === Status.failure
+            ? "FritzGate couldn't log in to the FRITZ!Box with the saved credentials."
+            : "FritzGate isn't connected to a FRITZ!Box yet."}
+        </p>
+        <a href="#setup" role="button">Connect to FRITZ!Box</a>
+      </div>
+    {:else if fritzConnecting}
+      <p class="empty" aria-busy="true">connecting to FRITZ!Box</p>
+    {:else if thermostats.length === 0}
       <p class="empty">no thermostats found on the FRITZ!Box yet</p>
     {/if}
     <div class="gauges">
@@ -123,6 +142,10 @@
   header small,
   .empty {
     color: var(--pico-muted-color);
+  }
+
+  .connect {
+    text-align: center;
   }
 
   /* As many gauges per row as fit at 11.5rem or more, but always two on phones;

@@ -6,12 +6,7 @@
   import Icon from "./lib/Icon.svelte";
   import ThermostatDialog from "./lib/ThermostatDialog.svelte";
   import WaitBox from "./lib/WaitBox.svelte";
-  import {
-    Status,
-    type ApiService,
-    type DeviceStatus,
-    type StatusData,
-  } from "./interfaces";
+  import type { ApiService, DeviceStatus, StatusData } from "./interfaces";
   import github from "./assets/github-mark.svg";
 
   // Dialogs open on top of the dashboard: #setup for the FRITZ!Box, #thermostat-<id> for a thermostat
@@ -22,8 +17,6 @@
   let page: string = location.hash;
   // True when opening the dialog added a history entry, so closing it goes back instead of piling up entries
   let dialogInHistory = false;
-  // Open the FRITZ!Box dialog once when it isn't connected, so closing it doesn't bring it straight back
-  let setupPrompted = false;
   let busy = false;
   let timer: ReturnType<typeof setTimeout>;
 
@@ -32,16 +25,6 @@
         (v) => v.id === decodeURIComponent(page.slice(THERMOSTAT_HASH.length))
       )
     : undefined;
-
-  $: if (
-    state &&
-    !setupPrompted &&
-    (state.fritz?.status === Status.failure ||
-      state.fritz?.status === Status.unconfigured)
-  ) {
-    setupPrompted = true;
-    location.hash = "#setup";
-  }
 
   function isDialog(hash: string) {
     return hash === "#setup" || hash.startsWith(THERMOSTAT_HASH);

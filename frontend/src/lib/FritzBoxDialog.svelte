@@ -14,23 +14,29 @@
   let status: string | undefined;
   let user: string;
   // After Connect the gateway drops the old connection (CONFIGURED) and logs in with the new
-  // credentials. Until it has been seen leaving, a "connected" status is still the old connection.
+  // credentials. It may log in before the next status poll, so the dialog can't rely on seeing that.
   let submitted = false;
+  let updatesSinceSubmit = 0;
+  // The gateway was seen connecting while the dialog is open
   let reconnecting = false;
 
-  $: connecting =
-    submitted || status === Status.configured || status === Status.connecting;
   $: onStatus(data?.fritz?.status);
 
   function onStatus(fritzStatus: string | undefined) {
     status = fritzStatus;
-    if (!submitted) return;
     if (status === Status.configured || status === Status.connecting) {
       reconnecting = true;
-    } else if (reconnecting && status === Status.connected) {
+      return;
+    }
+    // Polls run one at a time, so only the first status after Connect can come from a request
+    // sent before it, describing the old connection
+    if (submitted && !reconnecting && ++updatesSinceSubmit < 2) return;
+    if (!submitted && !reconnecting) return;
+
+    if (status === Status.connected) {
       dialog?.close();
-    } else if (reconnecting && status === Status.failure) {
-      // Back to the form, which shows the failure
+    } else {
+      // Back to the form, which shows a failure
       submitted = reconnecting = false;
     }
   }
@@ -38,6 +44,7 @@
   async function submitForm() {
     await api.setConfig(host, user, pass);
     submitted = true;
+    updatesSinceSubmit = 0;
     reconnecting = false;
   }
 
@@ -55,7 +62,8 @@
 
   <img src={iotSvg} class="illustration" alt="" />
 
-  {#if connecting}
+  <!-- Checked here rather than in a $: value, which could run before onStatus() sets the status -->
+  {#if submitted || status === Status.configured || status === Status.connecting}
     <p>connecting to FRITZ!Box, please wait, this may take a while</p>
     <progress></progress>
   {:else}
