@@ -9,6 +9,9 @@
   let timestamp: number = 0;
 
   $: updateSensorsAndTimestamp(data);
+  $: unboundSensors = (sensors ?? []).filter(
+    (sensor) => !thermostats.some((v) => v.referenceSensor == sensor.id)
+  );
 
   // Function to update sensors data
   function updateSensorsAndTimestamp(data: StatusData | null) {
@@ -32,7 +35,7 @@
     message="trying to connect to the gateway"
     details="this buddy gossips too much with the sensors"
   />
-{:else if sensors.length === 0}
+{:else if sensors.length === 0 && thermostats.length === 0}
   <WaitBox
     message="trying hard to find sensors nearby"
     details="FritzGate uses the Theengs Decoder to support over 70 models of temperature sensors."
@@ -40,22 +43,39 @@
 {:else}
   <article class="devices-list">
     <div class="row gauges">
-      {#each sensors as sensor}
-        {@const thermostat = thermostats.find(
-          (v) => v.referenceSensor == sensor.id
+      <!-- Every thermostat, showing its reference sensor or, without one, its built-in reading -->
+      {#each thermostats as thermostat (thermostat.id)}
+        {@const sensor = sensors.find(
+          (v) => v.id == thermostat.referenceSensor
         )}
         <div class="col-6 col-xs-6 col-sm-6 col-md-4 col-lg-3 col-xl-3">
           <Indicator
-            title={thermostat?.name ?? "Unknown location"}
+            title={thermostat.name}
+            temperature={sensor?.temperature ?? thermostat.temperature}
+            humidity={sensor ? Math.round(sensor.humidity) : undefined}
+            titleLeft={(thermostat.model ?? "") + " " + (thermostat.serial ?? "")}
+            signalLeft={thermostat.rssi}
+            chargeLeft={thermostat.battery}
+            targetTemperature={thermostat.targetTemperature}
+            temperatureLeft={sensor ? thermostat.temperature : undefined}
+            titleRight={sensor?.name ??
+              (thermostat.referenceSensor
+                ? `${thermostat.referenceSensor} (unavailable)`
+                : "built-in sensor")}
+            signalRight={sensor?.rssi}
+            chargeRight={sensor?.battery}
+            showRightBadges={!!thermostat.referenceSensor}
+          />
+        </div>
+      {/each}
+      <!-- Sensors no thermostat uses as reference -->
+      {#each unboundSensors as sensor (sensor.id)}
+        <div class="col-6 col-xs-6 col-sm-6 col-md-4 col-lg-3 col-xl-3">
+          <Indicator
+            title="Unknown location"
             temperature={sensor.temperature}
             humidity={Math.round(sensor.humidity)}
-            titleLeft={thermostat ? (thermostat?.model ?? "") +
-              " " +
-              (thermostat?.serial ?? "") : "no thermostat"}
-            signalLeft={thermostat?.rssi}
-            chargeLeft={thermostat?.battery}
-            targetTemperature={thermostat?.targetTemperature}
-            temperatureLeft={thermostat?.temperature}
+            titleLeft="no thermostat"
             titleRight={sensor.name}
             signalRight={sensor.rssi}
             chargeRight={sensor.battery}

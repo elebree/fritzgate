@@ -1,5 +1,5 @@
 <script lang="ts">
-  export let humidity: number;
+  export let humidity: number | undefined = undefined;
   export let temperature: number;
   export let title: string = "";
   export let titleLeft: string = "";
@@ -11,6 +11,8 @@
   export let titleRight: string = "";
   export let signalRight: number | undefined = undefined;
   export let chargeRight: number | undefined = undefined;
+  // false when the reading comes from the thermostat itself, so there is no separate sensor to report on
+  export let showRightBadges = true;
 
   import Gauge from "svelte-gauge";
   import heatIcon from "../assets/heating.svg";
@@ -63,13 +65,13 @@
     {stroke}
     labelsCentered={true}
     {labels}
-    segments={[[temperature, targetTemperature ?? temperature]]}
+    segments={[[temperature, targetTemperature || temperature]]}
     --stroke-color="#f2c894"
   >
     <Gauge
       bind:value={humidity}
       {stroke}
-      segments={[[40, 60]]}
+      segments={humidity === undefined ? [] : [[40, 60]]}
       --stroke-color="#9fc0de"
     >
       <div class="slider-content">
@@ -82,9 +84,11 @@
             }
           )}</span
         >
-        <span style="white-space:nowrap"
-          ><HumidityIcon value={humidity} />{humidity}%</span
-        >
+        {#if humidity !== undefined}
+          <span style="white-space:nowrap"
+            ><HumidityIcon value={humidity} />{humidity}%</span
+          >
+        {/if}
       </div>
       {#if targetTemperature}
         <div
@@ -97,14 +101,16 @@
       <div class="badge top left">
         <SignalIcon value={signalLeft} />
       </div>
-      <div class="badge top right">
-        <SignalIcon value={signalRight} />
-      </div>
+      {#if showRightBadges}
+        <div class="badge top right">
+          <SignalIcon value={signalRight} />
+        </div>
+        <div class="badge right">
+          <BatteryIcon value={chargeRight} />
+        </div>
+      {/if}
       <div class="badge left">
         <BatteryIcon value={chargeLeft} />
-      </div>
-      <div class="badge right">
-        <BatteryIcon value={chargeRight} />
       </div>
       {#if temperatureLeft}
         <div class="badge bottom">
