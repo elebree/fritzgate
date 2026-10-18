@@ -47,7 +47,7 @@ void Sensor::SerializeBody(Stream &client, long currentTimestamp, int indentLeve
     printIndent(client, indentLevel);
     client.printf("\"%s\": %d,", nameof(battery), battery);
     printIndent(client, indentLevel);
-    client.printf("\"%s\": %d,", nameof(rssi), (int)((currentTimestamp - timestamp) > 15 ? 0 : rssi));
+    client.printf("\"%s\": %d,", nameof(rssi), (int)((currentTimestamp - timestamp) > OFFLINE_TIMEOUT ? 0 : rssi));
     printIndent(client, indentLevel);
     client.printf("\"%s\": %g,", nameof(humidity), humidity / 10.0);
     printIndent(client, indentLevel);

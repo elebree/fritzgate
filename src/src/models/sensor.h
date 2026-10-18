@@ -5,6 +5,10 @@
 class Sensor
 {
 public:
+    // Seconds without a reading before the sensor is reported as not connected (rssi 0).
+    // Sensors are often heard only every 25-75 s, since BLE scanning shares the radio with WiFi.
+    static const long OFFLINE_TIMEOUT = 2 * 60;
+
     unsigned long timestamp;
     unsigned long seriesTimestamp = 1701790712;
     std::string name;
