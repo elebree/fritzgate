@@ -11,7 +11,7 @@
     "components/grid": true,
     "components/dropdown": false,
     "components/loading": true,
-    "components/modal": false,
+    "components/modal": true,
     "components/nav": true,
     "components/progress": true,
     "components/tooltip": false,
@@ -19,7 +19,6 @@
     "utilities/reduce-motion": false));
 
 @use "./pico-theme.scss";
-@use "./pico-bootstrap.scss";
 
 .message-splash {
   text-align: center;
@@ -53,12 +52,4 @@
 
 .strikeout {
   text-decoration: line-through;
-}
-
-nav a[aria-current="page"] {
-  font-weight: 600;
-}
-
-.p-0 {
-  padding: 0 !important;
 }

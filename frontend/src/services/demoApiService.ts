@@ -49,6 +49,10 @@ export class DemoApiService implements ApiService {
 
     async setBinding(device: string, reference: string): Promise<Response> {
         var status = await this.ensureStatusLoaded();
+        const thermostat = status.thermostats.find(v => v.id === device);
+        if (thermostat) {
+            thermostat.referenceSensor = reference;
+        }
         return { ok: true } as any;
     }
 

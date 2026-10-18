@@ -13,6 +13,8 @@
   export let chargeRight: number | undefined = undefined;
   // false when the reading comes from the thermostat itself, so there is no separate sensor to report on
   export let showRightBadges = true;
+  // Called after the gauge is pressed and held; the gauge isn't holdable without it
+  export let onHold: (() => void) | undefined = undefined;
 
   import Gauge from "svelte-gauge";
   import heatIcon from "../assets/heating.svg";
@@ -50,13 +52,58 @@
     }
     return text.trimEnd() + "…";
   }
+
+  const HOLD_MS = 600;
+  // svelte-gauge always tweens for one second, so the easing completes the fill within HOLD_MS
+  const holdEasing = (t: number) => Math.min(1, (t * 1000) / HOLD_MS);
+  let holding = false;
+  let holdTimer: ReturnType<typeof setTimeout> | undefined;
+
+  // A touch or pen press-and-hold also counts as a right click, which can arrive after the dialog
+  // has opened under the finger (on release on Windows), so context menus are blocked until the press is over
+  function blockContextMenuDuringPress() {
+    const prevent = (event: Event) => event.preventDefault();
+    const release = () => {
+      setTimeout(() => window.removeEventListener("contextmenu", prevent, true), 500);
+      window.removeEventListener("pointerup", release, true);
+      window.removeEventListener("pointercancel", release, true);
+    };
+    window.addEventListener("contextmenu", prevent, true);
+    window.addEventListener("pointerup", release, true);
+    window.addEventListener("pointercancel", release, true);
+  }
+
+  function startHold(event: PointerEvent) {
+    if (!onHold || event.button !== 0) return;
+    blockContextMenuDuringPress();
+    holding = true;
+    holdTimer = setTimeout(() => {
+      stopHold();
+      onHold?.();
+    }, HOLD_MS);
+  }
+
+  function stopHold() {
+    holding = false;
+    clearTimeout(holdTimer);
+  }
 </script>
 
+<!-- The hold is for pointers; keyboard and screen reader users get the hidden button inside -->
+<!-- svelte-ignore a11y_no_static_element_interactions -->
 <div
   bind:this={wrapper}
   bind:clientWidth={size}
+  class:holdable={!!onHold}
+  on:pointerdown={startHold}
+  on:pointerup={stopHold}
+  on:pointerleave={stopHold}
+  on:pointercancel={stopHold}
   style="width: 100%;aspect-ratio: 1/1;--label-font-size: {labelFontSize}px"
 >
+  {#if onHold}
+    <button class="hold-button" on:click={onHold}>Configure {title}</button>
+  {/if}
   <Gauge
     class="indicator-gauge"
     bind:value={temperature}
@@ -126,11 +173,59 @@
           <img src={settingsIcon} alt="" />
         </div>
       {/if}
+      {#if onHold}
+        <div class="hold-progress" class:active={holding}>
+          <Gauge
+            value={holding ? 100 : 0}
+            {stroke}
+            easing={holdEasing}
+            displayValue=""
+            --stroke-color="var(--pico-primary-background)"
+          />
+        </div>
+      {/if}
     </Gauge>
   </Gauge>
 </div>
 
 <style lang="scss">
+  .holdable {
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+    border-radius: 50%;
+
+    &:focus-within {
+      outline: 2px solid var(--pico-primary-focus);
+    }
+  }
+
+  .hold-button {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  // Fills inside the humidity ring while a holdable gauge is pressed, and drains when released early
+  .hold-progress {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    transition: opacity 0.3s;
+    pointer-events: none;
+
+    &.active {
+      opacity: 1;
+    }
+  }
+
   .slider-content {
     top: 50%;
     width: 100%;

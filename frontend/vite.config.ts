@@ -49,4 +49,12 @@ export default defineConfig(({ mode }) => ({
     viteSingleFile(),
     mode === 'firmware' ? indexHtmlHeaderPlugin() : undefined,
   ],
+  css: {
+    preprocessorOptions: {
+      scss: {
+        // Pico CSS still uses deprecated Sass syntax (if()); hide warnings from packages, keep ours
+        quietDeps: true,
+      },
+    },
+  },
 }));

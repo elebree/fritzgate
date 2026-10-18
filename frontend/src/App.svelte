@@ -1,25 +1,73 @@
 <script lang="ts">
   import "./app.scss";
 
-  import PageRouterLogin from "./Pages/PageRouterLogin.svelte";
   import PageSensors from "./Pages/PageSensors.svelte";
-  import PageThermostats from "./Pages/PageThermostats.svelte";
+  import FritzBoxDialog from "./lib/FritzBoxDialog.svelte";
   import Icon from "./lib/Icon.svelte";
+  import ThermostatDialog from "./lib/ThermostatDialog.svelte";
   import WaitBox from "./lib/WaitBox.svelte";
-  import type { ApiService, StatusData } from "./interfaces";
+  import {
+    Status,
+    type ApiService,
+    type DeviceStatus,
+    type StatusData,
+  } from "./interfaces";
   import github from "./assets/github-mark.svg";
+
+  // Dialogs open on top of the dashboard: #setup for the FRITZ!Box, #thermostat-<id> for a thermostat
+  const THERMOSTAT_HASH = "#thermostat-";
 
   export let api: ApiService;
   let state: StatusData | undefined = undefined;
   let page: string = location.hash;
+  // True when opening the dialog added a history entry, so closing it goes back instead of piling up entries
+  let dialogInHistory = false;
+  // Open the FRITZ!Box dialog once when it isn't connected, so closing it doesn't bring it straight back
+  let setupPrompted = false;
   let busy = false;
   let timer: ReturnType<typeof setTimeout>;
 
-  $: isSettings = page === "#heating" || page === "#setup";
+  $: configured = page.startsWith(THERMOSTAT_HASH)
+    ? state?.thermostats.find(
+        (v) => v.id === decodeURIComponent(page.slice(THERMOSTAT_HASH.length))
+      )
+    : undefined;
+
+  $: if (
+    state &&
+    !setupPrompted &&
+    (state.fritz?.status === Status.failure ||
+      state.fritz?.status === Status.unconfigured)
+  ) {
+    setupPrompted = true;
+    location.hash = "#setup";
+  }
+
+  function isDialog(hash: string) {
+    return hash === "#setup" || hash.startsWith(THERMOSTAT_HASH);
+  }
 
   function routeChange() {
     console.log(location.hash);
+    const previous = page;
     page = location.hash;
+    dialogInHistory = isDialog(page) && !isDialog(previous);
+  }
+
+  function configure(thermostat: DeviceStatus) {
+    location.hash = THERMOSTAT_HASH + encodeURIComponent(thermostat.id);
+  }
+
+  function closeDialog() {
+    if (!isDialog(page)) {
+      return;
+    }
+    if (dialogInHistory) {
+      history.back();
+    } else {
+      history.replaceState(null, "", location.pathname + location.search);
+      page = "";
+    }
   }
 
   function requestNotifications() {
@@ -83,20 +131,6 @@
       <li>
         <a
           class="secondary"
-          href={"#sensors"}
-          aria-current={isSettings ? undefined : "page"}>Dashboard</a
-        >
-      </li>
-      <li>
-        <a
-          class="secondary"
-          href={"#heating"}
-          aria-current={isSettings ? "page" : undefined}>Settings</a
-        >
-      </li>
-      <li>
-        <a
-          class="secondary"
           href="https://github.com/elebree/fritzgate"
           target="_blank"
           ><Icon src={github} label="Github" --icon-size="1.5em" /></a
@@ -109,9 +143,17 @@
       message="trying to connect to the FritzGate"
       details="this buddy gossips too much with sensors"
     />
-  {:else if page === "#sensors"}<PageSensors data={state} />
-  {:else if page === "#heating"}<PageThermostats {api} data={state} />
-  {:else if page === "#setup"}<PageRouterLogin {api} data={state} />
-  {:else}<PageSensors data={state} />
+  {:else}<PageSensors data={state} onConfigure={configure} />
+  {/if}
+  {#if state && page === "#setup"}
+    <FritzBoxDialog {api} data={state} onClose={closeDialog} />
+  {:else if state && configured}
+    <ThermostatDialog
+      thermostat={configured}
+      thermostats={state.thermostats}
+      sensors={state.sensors}
+      {api}
+      onClose={closeDialog}
+    />
   {/if}
 </main>
