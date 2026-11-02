@@ -16,7 +16,7 @@
     "@picocss/pico": "^2.1.1",
     "@sveltejs/vite-plugin-svelte": "^7.3.1",
     "@tsconfig/svelte": "^5.0.8",
-    "cypress": "^16.2.0",
+    "cypress": "^16.2.1",
     "sass": "^1.105.2",
     "svelte": "^5.57.2",
     "svelte-check": "^4.7.6",
