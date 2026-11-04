@@ -1,0 +1,50 @@
+#   mise install         install the tools below
+#   mise run build       firmware only, with the committed src/index_html.h (platformio.yml)
+#   mise run release     web UI + firmware + flash parts in release/ (release.yml)
+
+[tools]
+node = "26"                 # keep in sync with frontend/.node-version
+pnpm = "10"                 # release.yml: pnpm/action-setup version
+uv = "latest"
+"pypi:platformio" = "latest"
+"pypi:esptool" = "4.8.1"    # release.yml pins this version
+
+[tasks."build:ui"]
+description = "Regenerate src/index_html.h from frontend/"
+dir = "{{config_root}}/frontend"
+run = ["pnpm install --frozen-lockfile", "pnpm run build:firmware"]
+
+[tasks.build]
+description = "Build the firmware (.pio/build/esp32cam)"
+run = "pio run"
+
+[tasks.release]
+description = "Build the web UI and firmware, then collect the flash parts in release/"
+shell = "bash -c"
+run = [
+  { task = "build:ui" },
+  { task = "build" },
+  '''
+set -euo pipefail
+name="fritzgate-$(git describe --tags --always --dirty)"
+build=.pio/build/esp32cam
+rm -rf release
+mkdir -p release
+cp "$build/bootloader.bin" "release/$name-bootloader.bin"
+cp "$build/partitions.bin" "release/$name-partitions.bin"
+cp ~/.platformio/packages/framework-arduinoespressif32/tools/partitions/boot_app0.bin "release/$name-boot_app0.bin"
+cp "$build/firmware.bin" "release/$name-firmware.bin"
+
+# Offsets match the esp32cam board, see release.yml.
+# The entry point is esptool.py, which uv installs as esptool.exe on Windows.
+esptool=$(command -v esptool.py || command -v esptool)
+"$esptool" --chip esp32 merge_bin -o "release/$name-full.bin" \
+  --flash_mode dio --flash_freq 40m --flash_size 4MB \
+  0x1000 "release/$name-bootloader.bin" \
+  0x8000 "release/$name-partitions.bin" \
+  0xe000 "release/$name-boot_app0.bin" \
+  0x10000 "release/$name-firmware.bin"
+
+ls -l release
+''',
+]
