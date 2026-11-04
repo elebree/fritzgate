@@ -76,6 +76,11 @@
       <a href="https://192.168.178.1" target="_blank">192.168.178.1</a>),
       username and password to connect to the FRITZ!Box SmartHome.
     </p>
+    {#if api.demo}
+      <p>
+        <mark>This is a demo: enter any password. Nothing is sent to a FRITZ!Box.</mark>
+      </p>
+    {/if}
     {#if status === Status.failure}
       <p>
         <mark>failed to connect to FRITZ!Box with the provided credentials</mark>

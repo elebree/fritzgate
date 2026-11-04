@@ -1,6 +1,7 @@
 import { Status, type ApiService, type SensorStatus, type StatusData } from "../interfaces";
 
 export class DemoApiService implements ApiService {
+    readonly demo = true;
     private statusPromise: Promise<StatusData> = undefined!;
     private sensors: SensorStatus[] = [];
     private url!: string;

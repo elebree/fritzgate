@@ -36,6 +36,7 @@ export interface ApiService {
     fetchStatus(): Promise<StatusData | undefined>;
     setBinding(device: string | undefined, reference: string | undefined): Promise<Response>;
     setConfig(host: string, user: string, pass: string): Promise<Response>;
+    readonly demo?: boolean; // Set by the demo, which simulates the FRITZ!Box and accepts any credentials
 }
 
 export class Status {

@@ -608,7 +608,6 @@
           <span class="chip"><span class="d" style="background:#ff6700"></span>Xiaomi</span>
           <span class="chip"><span class="d" style="background:#1f6feb"></span>Govee</span>
           <span class="chip"><span class="d" style="background:#22a699"></span>SwitchBot</span>
-          <span class="chip"><span class="d" style="background:#00b4c8"></span>Shelly</span>
           <span class="chip"><span class="d" style="background:#e0245e"></span>Ruuvi</span>
           <span class="chip"><span class="d" style="background:#f7a700"></span>Inkbird</span>
           <span class="chip"><span class="d" style="background:#6c5ce7"></span>ThermoPro</span>
@@ -621,8 +620,8 @@
         </div>
 
         <div class="sensors-foot reveal">
-          <a class="btn btn-ghost" href="https://decoder.theengs.io/devices/devices.html" target="_blank" rel="noopener">
-            <span data-i18n="sensors.link">See every supported device</span>
+          <a class="btn btn-ghost" href="https://github.com/elebree/fritzgate#compatible-sensors" target="_blank" rel="noopener">
+            <span data-i18n="sensors.link">See the supported sensors</span>
             <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M5 12h12l-5-5 1.4-1.4L21.8 12l-8.4 6.4L12 17l5-5H5z"/></svg>
           </a>
           <span class="powered" data-i18n="sensors.powered">Decoding powered by the open-source Theengs project.</span>
@@ -665,9 +664,9 @@
         </div>
 
         <div class="grid g-3" style="margin-top:46px;">
-          <div class="card reveal"><div class="num">1</div><h3 data-i18n="inst.s1.t">Get the hardware</h3><p data-i18n="inst.s1.d">An Ai Thinker ESP32-CAM board (~€8) and at least one supported Bluetooth sensor.</p></div>
-          <div class="card reveal"><div class="num">2</div><h3 data-i18n="inst.s2.t">Flash from your browser</h3><p data-i18n="inst.s2.d">Connect the board over USB and click Install in the web installer. Chrome or Edge is all you need.</p></div>
-          <div class="card reveal"><div class="num">3</div><h3 data-i18n="inst.s3.t">Power it anywhere</h3><p data-i18n="inst.s3.d">A USB port does the job — even the one on the back of your FRITZ!Box. No extra adapter needed.</p></div>
+          <div class="card reveal"><div class="num">1</div><h3 data-i18n="inst.s1.t">Get the hardware</h3><p data-i18n="inst.s1.d">An Ai Thinker ESP32-CAM board (~€8), an ESP32-CAM-MB USB adapter and at least one supported Bluetooth sensor.</p></div>
+          <div class="card reveal"><div class="num">2</div><h3 data-i18n="inst.s2.t">Flash from your browser</h3><p data-i18n="inst.s2.d">Put the board on the MB adapter, connect it over USB and click Install in the web installer. Chrome or Edge on a computer is all the software you need.</p></div>
+          <div class="card reveal"><div class="num">3</div><h3 data-i18n="inst.s3.t">Power it anywhere</h3><p data-i18n="inst.s3.d">A USB port does the job — even the one on the back of your FRITZ!Box. No extra power supply needed.</p></div>
           <div class="card reveal"><div class="num">4</div><h3 data-i18n="inst.s4.t">Scan Wi-Fi by QR</h3><p data-i18n="inst.s4.d">On first boot, hold a Wi-Fi QR code in front of the camera and FritzGate joins your network automatically.</p></div>
           <div class="card reveal"><div class="num">5</div><h3 data-i18n="inst.s5.t">Connect &amp; relax</h3><p data-i18n="inst.s5.d">Open http://fritzgate, click Connect to FRITZ!Box, then hold a thermostat's gauge to pick its room sensor. Done.</p></div>
           <div class="card reveal" style="display:flex;flex-direction:column;justify-content:center;background:linear-gradient(135deg, color-mix(in srgb, var(--accent) 10%, var(--surface)), var(--surface));">
@@ -693,8 +692,8 @@
           <details class="q reveal"><summary><span data-i18n="faq.q1">Will it mess with my heating schedule?</span><span class="plus" aria-hidden="true"></span></summary><div class="a" data-i18n="faq.a1">No. FritzGate never touches your weekly programs or other FRITZ!Box settings. It only adjusts the thermostat's temperature offset — everything else stays exactly as you configured it.</div></details>
           <details class="q reveal"><summary><span data-i18n="faq.q2">Do I need a FRITZ!Box?</span><span class="plus" aria-hidden="true"></span></summary><div class="a" data-i18n="faq.a2">For thermostat control, yes — the thermostats are FRITZ!DECT devices paired to it. But even without one, FritzGate still works as a local dashboard to monitor temperature and humidity from your sensors.</div></details>
           <details class="q reveal"><summary><span data-i18n="faq.q3">Is my data sent to the cloud?</span><span class="plus" aria-hidden="true"></span></summary><div class="a" data-i18n="faq.a3">Never. FritzGate runs entirely on your local network. There is no account, no subscription, and nothing phones home. Your FRITZ!Box credentials are stored only on the device.</div></details>
-          <details class="q reveal"><summary><span data-i18n="faq.q4">Which sensors can I use?</span><span class="plus" aria-hidden="true"></span></summary><div class="a" data-i18n="faq.a4">Over 70 Bluetooth models from brands like Xiaomi, Govee, SwitchBot, Shelly, Ruuvi, Inkbird and ThermoPro. If it is on the Theengs compatibility list, FritzGate can read it.</div></details>
-          <details class="q reveal"><summary><span data-i18n="faq.q5">How is my FRITZ!Box password protected?</span><span class="plus" aria-hidden="true"></span></summary><div class="a" data-i18n="faq.a5">Login uses the FRITZ!Box PBKDF2 challenge-response scheme — your password is never sent in the clear. Credentials live only in the device's local storage.</div></details>
+          <details class="q reveal"><summary><span data-i18n="faq.q4">Which sensors can I use?</span><span class="plus" aria-hidden="true"></span></summary><div class="a" data-i18n="faq.a4">Over 70 Bluetooth models from brands like Xiaomi, Govee, SwitchBot, Ruuvi, Inkbird and ThermoPro: every sensor that TheengsDecoder 1.7.8 can decode and that reports a temperature. Newer models on the Theengs website may not work yet.</div></details>
+          <details class="q reveal"><summary><span data-i18n="faq.q5">How is my FRITZ!Box password protected?</span><span class="plus" aria-hidden="true"></span></summary><div class="a" data-i18n="faq.a5">FritzGate logs in with the FRITZ!Box PBKDF2 challenge-response scheme and never sends your password to the FRITZ!Box. The credentials are stored only on the device. The web interface uses plain HTTP, so enter them only on your home network.</div></details>
           <details class="q reveal"><summary><span data-i18n="faq.q6">Do I still need the camera after setup?</span><span class="plus" aria-hidden="true"></span></summary><div class="a" data-i18n="faq.a6">No. The camera is only used once, to scan a Wi-Fi QR code during first setup. You can also set the credentials manually in code.</div></details>
           <details class="q reveal"><summary><span data-i18n="faq.q7">What does it cost to build?</span><span class="plus" aria-hidden="true"></span></summary><div class="a" data-i18n="faq.a7">Roughly the price of an ESP32-CAM board plus a sensor — typically under €20 in total. The software is free and open source under the MIT license.</div></details>
         </div>
@@ -747,7 +746,7 @@
           </div>
           <div class="foot-col">
             <h4 data-i18n="footer.hardware">Hardware</h4>
-            <a href="https://decoder.theengs.io/devices/devices.html" target="_blank" rel="noopener" data-i18n="footer.sensors">Supported sensors</a>
+            <a href="https://github.com/elebree/fritzgate#compatible-sensors" target="_blank" rel="noopener" data-i18n="footer.sensors">Supported sensors</a>
             <a href="https://platformio.org/" target="_blank" rel="noopener">PlatformIO</a>
             <a href="https://decoder.theengs.io/" target="_blank" rel="noopener">Theengs Decoder</a>
           </div>
@@ -800,15 +799,15 @@
           "models.badge": "Fully supported",
           "sensors.kicker": "Sensors", "sensors.title": "70+ temperature sensors, one bridge",
           "sensors.lead": "Already own a Xiaomi, Govee or SwitchBot sensor? Chances are it just works. FritzGate decodes the Bluetooth broadcasts of 70+ models from leading brands — pick whichever you like and place it where comfort matters.",
-          "sensors.more": "+ 60 more models", "sensors.link": "See every supported device", "sensors.powered": "Decoding powered by the open-source Theengs project.",
+          "sensors.more": "+ 60 more models", "sensors.link": "See the supported sensors", "sensors.powered": "Decoding powered by the open-source Theengs project.",
           "demo.kicker": "See it live", "demo.title": "A dashboard that fits in your browser",
           "demo.lead": "The whole web interface is served straight from the device — no app to install. See every thermostat next to the room sensor it follows, hold a gauge to choose that sensor, and connect your FRITZ!Box with one button. Try the interactive demo right now.",
           "demo.cta": "Open the live demo",
           "install.kicker": "Installation", "install.title": "Up and running in an afternoon",
           "install.lead": "No soldering, no hub, no cloud sign-up — and no developer tools: the web installer flashes the board right from your browser.",
-          "inst.s1.t": "Get the hardware", "inst.s1.d": "An Ai Thinker ESP32-CAM board (~€8) and at least one supported Bluetooth sensor.",
-          "inst.s2.t": "Flash from your browser", "inst.s2.d": "Connect the board over USB and click Install in the web installer. Chrome or Edge is all you need.",
-          "inst.s3.t": "Power it anywhere", "inst.s3.d": "A USB port does the job — even the one on the back of your FRITZ!Box. No extra adapter needed.",
+          "inst.s1.t": "Get the hardware", "inst.s1.d": "An Ai Thinker ESP32-CAM board (~€8), an ESP32-CAM-MB USB adapter and at least one supported Bluetooth sensor.",
+          "inst.s2.t": "Flash from your browser", "inst.s2.d": "Put the board on the MB adapter, connect it over USB and click Install in the web installer. Chrome or Edge on a computer is all the software you need.",
+          "inst.s3.t": "Power it anywhere", "inst.s3.d": "A USB port does the job — even the one on the back of your FRITZ!Box. No extra power supply needed.",
           "inst.s4.t": "Scan Wi-Fi by QR", "inst.s4.d": "On first boot, hold a Wi-Fi QR code in front of the camera and FritzGate joins your network automatically.",
           "inst.s5.t": "Connect & relax", "inst.s5.d": "Open http://fritzgate, click Connect to FRITZ!Box, then hold a thermostat's gauge to pick its room sensor. Done.",
           "install.cta.t": "Ready to flash?", "install.cta.d": "The web installer puts the latest release on your board. Prefer PlatformIO? The full guide lives in the repository.", "install.cta.b": "Open the web installer", "install.cta.guide": "Full installation guide",
@@ -820,9 +819,9 @@
           "faq.q3": "Is my data sent to the cloud?",
           "faq.a3": "Never. FritzGate runs entirely on your local network. There is no account, no subscription, and nothing phones home. Your FRITZ!Box credentials are stored only on the device.",
           "faq.q4": "Which sensors can I use?",
-          "faq.a4": "Over 70 Bluetooth models from brands like Xiaomi, Govee, SwitchBot, Shelly, Ruuvi, Inkbird and ThermoPro. If it is on the Theengs compatibility list, FritzGate can read it.",
+          "faq.a4": "Over 70 Bluetooth models from brands like Xiaomi, Govee, SwitchBot, Ruuvi, Inkbird and ThermoPro: every sensor that TheengsDecoder 1.7.8 can decode and that reports a temperature. Newer models on the Theengs website may not work yet.",
           "faq.q5": "How is my FRITZ!Box password protected?",
-          "faq.a5": "Login uses the FRITZ!Box PBKDF2 challenge-response scheme — your password is never sent in the clear. Credentials live only in the device's local storage.",
+          "faq.a5": "FritzGate logs in with the FRITZ!Box PBKDF2 challenge-response scheme and never sends your password to the FRITZ!Box. The credentials are stored only on the device. The web interface uses plain HTTP, so enter them only on your home network.",
           "faq.q6": "Do I still need the camera after setup?",
           "faq.a6": "No. The camera is only used once, to scan a Wi-Fi QR code during first setup. You can also set the credentials manually in code.",
           "faq.q7": "What does it cost to build?",
@@ -872,14 +871,14 @@
           "models.badge": "Voll unterstützt",
           "sensors.kicker": "Sensoren", "sensors.title": "70+ Temperatursensoren, eine Brücke",
           "sensors.lead": "Du hast bereits einen Xiaomi-, Govee- oder SwitchBot-Sensor? Die Chancen stehen gut, dass er einfach funktioniert. FritzGate dekodiert die Bluetooth-Signale von 70+ Modellen führender Marken – nimm, was dir gefällt, und platziere es dort, wo Komfort zählt.",
-          "sensors.more": "+ 60 weitere Modelle", "sensors.link": "Alle unterstützten Geräte ansehen", "sensors.powered": "Dekodierung dank des Open-Source-Projekts Theengs.",
+          "sensors.more": "+ 60 weitere Modelle", "sensors.link": "Unterstützte Sensoren ansehen", "sensors.powered": "Dekodierung dank des Open-Source-Projekts Theengs.",
           "demo.kicker": "Live ansehen", "demo.title": "Ein Dashboard, das in deinen Browser passt",
           "demo.lead": "Die komplette Weboberfläche kommt direkt vom Gerät – keine App nötig. Sieh jeden Thermostat neben dem Raumsensor, dem er folgt, halte seine Anzeige gedrückt, um diesen Sensor zu wählen, und verbinde deine FRITZ!Box mit einem Klick. Probier die interaktive Demo gleich aus.",
           "demo.cta": "Live-Demo öffnen",
           "install.kicker": "Installation", "install.title": "An einem Nachmittag startklar",
           "install.lead": "Kein Löten, kein Hub, keine Cloud-Anmeldung – und keine Entwicklerwerkzeuge: Der Web-Installer flasht das Board direkt aus deinem Browser.",
-          "inst.s1.t": "Hardware besorgen", "inst.s1.d": "Ein Ai Thinker ESP32-CAM-Board (~8 €) und mindestens ein unterstützter Bluetooth-Sensor.",
-          "inst.s2.t": "Im Browser flashen", "inst.s2.d": "Schließe das Board per USB an und klicke im Web-Installer auf Installieren. Chrome oder Edge genügen.",
+          "inst.s1.t": "Hardware besorgen", "inst.s1.d": "Ein Ai Thinker ESP32-CAM-Board (~8 €), ein ESP32-CAM-MB-USB-Adapter und mindestens ein unterstützter Bluetooth-Sensor.",
+          "inst.s2.t": "Im Browser flashen", "inst.s2.d": "Stecke das Board auf den MB-Adapter, schließe es per USB an und klicke im Web-Installer auf Installieren. Als Software genügt Chrome oder Edge auf einem Computer.",
           "inst.s3.t": "Überall mit Strom versorgen", "inst.s3.d": "Ein USB-Port genügt – sogar der an der Rückseite deiner FRITZ!Box. Kein zusätzliches Netzteil nötig.",
           "inst.s4.t": "WLAN per QR scannen", "inst.s4.d": "Beim ersten Start hältst du einen WLAN-QR-Code vor die Kamera und FritzGate verbindet sich automatisch mit deinem Netzwerk.",
           "inst.s5.t": "Verbinden & entspannen", "inst.s5.d": "http://fritzgate öffnen, auf „Connect to FRITZ!Box“ klicken und dann die Anzeige eines Thermostats gedrückt halten, um seinen Raumsensor zu wählen. Fertig.",
@@ -892,9 +891,9 @@
           "faq.q3": "Werden meine Daten in die Cloud gesendet?",
           "faq.a3": "Niemals. FritzGate läuft vollständig in deinem lokalen Netzwerk. Kein Konto, kein Abo, nichts funkt nach Hause. Deine FRITZ!Box-Zugangsdaten werden nur auf dem Gerät gespeichert.",
           "faq.q4": "Welche Sensoren kann ich nutzen?",
-          "faq.a4": "Über 70 Bluetooth-Modelle von Marken wie Xiaomi, Govee, SwitchBot, Shelly, Ruuvi, Inkbird und ThermoPro. Steht es auf der Theengs-Kompatibilitätsliste, kann FritzGate es lesen.",
+          "faq.a4": "Über 70 Bluetooth-Modelle von Marken wie Xiaomi, Govee, SwitchBot, Ruuvi, Inkbird und ThermoPro: jeder Sensor, den TheengsDecoder 1.7.8 dekodieren kann und der eine Temperatur meldet. Neuere Modelle von der Theengs-Website funktionieren eventuell noch nicht.",
           "faq.q5": "Wie ist mein FRITZ!Box-Passwort geschützt?",
-          "faq.a5": "Die Anmeldung nutzt das PBKDF2-Challenge-Response-Verfahren der FRITZ!Box – dein Passwort wird nie im Klartext übertragen. Die Zugangsdaten liegen nur im lokalen Speicher des Geräts.",
+          "faq.a5": "FritzGate meldet sich mit dem PBKDF2-Challenge-Response-Verfahren der FRITZ!Box an und sendet dein Passwort nie an die FRITZ!Box. Die Zugangsdaten werden nur auf dem Gerät gespeichert. Die Weboberfläche nutzt unverschlüsseltes HTTP, gib sie also nur in deinem Heimnetz ein.",
           "faq.q6": "Brauche ich die Kamera nach der Einrichtung noch?",
           "faq.a6": "Nein. Die Kamera wird nur einmalig verwendet, um beim ersten Start einen WLAN-QR-Code zu scannen. Die Zugangsdaten lassen sich auch manuell im Code setzen.",
           "faq.q7": "Was kostet der Nachbau?",
