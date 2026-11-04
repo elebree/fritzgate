@@ -2,81 +2,95 @@
 
 [![en](https://img.shields.io/badge/lang-en-blue.svg)](README.md)
 [![de](https://img.shields.io/badge/lang-de-red.svg)](README.de.md)
-[![PlatformIO CI](https://github.com/elebree/fritzgate/actions/workflows/platformio.yml/badge.svg)](https://github.com/elebree/fritzgate/actions/workflows/platformio.yml)
-[![Frontend CI](https://github.com/elebree/fritzgate/actions/workflows/deploy.yml/badge.svg)](https://github.com/elebree/fritzgate/actions/workflows/deploy.yml)
 
-**FritzGate** verwandelt ein **Ai Thinker** Board in einen intelligenten Thermostat-Controller. Es arbeitet mit Thermostaten, die mit einer **FRITZ!Box** verbunden sind (`FRITZ!DECT 301` und `FRITZ!DECT 302`), und nutzt für eine präzise Regelung der Raumtemperatur einen von über 70 Bluetooth-Temperatursensoren. Unterstützt werden unter anderem Geräte von Govee, Xiaomi, Qingping, Ruuvi, Inkbird, SwitchBot und ThermoPro.
+**FritzGate** sorgt dafür, dass deine Heizkörperthermostate **FRITZ!DECT 301** und **FRITZ!DECT 302** nach der Temperatur im Raum heizen und nicht nach der Temperatur am Heizkörper. Es läuft auf einem kleinen, günstigen Board, dem **Ai Thinker ESP32-CAM**, und nutzt Bluetooth-Thermometer, die du in deinen Räumen aufstellst. Unterstützt werden über 70 Modelle, unter anderem von Xiaomi, Govee, SwitchBot, Qingping, Ruuvi, Inkbird und ThermoPro.
 
-[![FritzGate screenshot](docs/FritzGate_Screenshot.svg)](https://fritzgate.elebree.com/demo/)
+**[Website](https://fritzgate.elebree.com/)** · **[Live-Demo](https://fritzgate.elebree.com/demo/)** · **[Web-Installer](https://fritzgate.elebree.com/flasher/)**
 
-## Demo
+<a href="https://fritzgate.elebree.com/demo/">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="site/assets/social.png">
+    <img alt="FritzGate-Dashboard mit Thermostat-Anzeigen und Bluetooth-Sensoren" src="site/assets/social.png">
+  </picture>
+</a>
 
-Eine Online-Demo findest du [hier](https://fritzgate.elebree.com/demo/).
+## Warum FritzGate
 
-## Funktionen
+Ein Heizkörperthermostat misst die Temperatur direkt neben dem heißen Heizkörper, nicht im Raum, in dem du dich aufhältst. Räume werden zu warm, Ecken bleiben kalt, und du bezahlst für Wärme, die du nie spürst. Mit FritzGate folgt jedes Thermostat einem Thermometer im Raum, damit der Raum die eingestellte Temperatur erreicht.
 
-- **FRITZ!Box-Integration:** FritzGate liest deine Thermostate direkt aus der FRITZ!Box. Es ändert nur den Temperatur-Offset und lässt Wochenpläne und alle anderen Thermostateinstellungen unverändert.
-- **Externe Temperatursensoren:** Ein Thermostat misst die Temperatur am Heizkörper. Verknüpfe es mit einem Sensor im Raum, und FritzGate korrigiert laufend den Temperatur-Offset des Thermostats, damit der Raum die eingestellte Temperatur erreicht.
-- **Eingebaute Weboberfläche:** Überwache Temperatur, Luftfeuchtigkeit, Batterie und Signal der Sensoren in der Nähe, und verwalte Thermostat-Sensor-Verknüpfungen im Browser.
+## Was du bekommst
 
-## Vorteile
-
-- **Einfache Konfiguration:** Richte das WLAN ein, indem du der Kamera des Boards einen WLAN-QR-Code zeigst.
-- **Kostengünstige Hardware:** Das **ESP32-CAM** Board ist preiswert und energieeffizient.
-- **Stromversorgung über die FRITZ!Box:** Versorge das Board über den USB-Anschluss der **FRITZ!Box** mit Strom. Du brauchst keinen zusätzlichen Platz und kein eigenes Netzteil.
-- **Über 70 unterstützte Sensoren:** Verwende eines von [über 70 Modellen](https://decoder.theengs.io/devices/devices.html) von Temperatursensoren für angenehme Räume und weniger Energieverbrauch.
-- **Auch ohne FRITZ!Box nutzbar:** Auch ohne Zugang zur FRITZ!Box kannst du Temperatur und Luftfeuchtigkeit der Sensoren in der Nähe überwachen.
+- **Angenehme Räume:** Die eingestellte Temperatur wird dort gemessen, wo du dich aufhältst, nicht am Heizkörper.
+- **Deine Einstellungen bleiben, wie sie sind:** FritzGate ändert weder deine Wochenpläne noch andere FRITZ!Box-Einstellungen. Es ändert nur den *Temperatur-Offset* jedes Thermostats, einen Korrekturwert, den du auch selbst in der FRITZ!Box einstellen könntest.
+- **Eine Webseite statt einer App:** Öffne FritzGate in einem beliebigen Browser in deinem Heimnetz. Du siehst Temperatur, Luftfeuchtigkeit, Batterie und Signal deiner Sensoren und wählst, welchem Sensor jedes Thermostat folgt. Probier die [Live-Demo](https://fritzgate.elebree.com/demo/) aus. Sie simuliert eine FRITZ!Box, daher funktioniert jedes Passwort.
+- **Bleibt zu Hause:** Keine Cloud, kein Konto und kein Abo. Dein FRITZ!Box-Login wird nur auf dem Board gespeichert.
+- **Günstig und aufgeräumt:** Board und Sensor kosten zusammen meist weniger als 20 €. Der USB-Anschluss der FRITZ!Box kann das Board mit Strom versorgen, du brauchst also kein eigenes Netzteil.
+- **Auch ohne FRITZ!Box nutzbar:** Ohne FRITZ!Box zeigt FritzGate weiterhin die Messwerte deiner Sensoren an.
 
 ## Funktionsweise
 
-- Das Board empfängt die Bluetooth-Advertisements der Sensoren in der Nähe und berechnet für jeden Sensor eine geglättete Temperatur.
-- Alle 30 Sekunden liest es die Thermostate aus der FRITZ!Box. Für jedes Thermostat, das mit einem Sensor verknüpft ist, berechnet es den Offset als *Sensortemperatur − Thermostattemperatur*, rundet ihn auf 0,5 °C, begrenzt ihn auf ±5 °C und sendet ihn an die FRITZ!Box, wenn er sich geändert hat.
-- Der Offset bleibt unverändert, wenn der letzte Messwert des Sensors älter als 5 Minuten ist oder die Heizung am Thermostat ausgeschaltet ist.
-- Wenn 5 Minuten lang weder die FRITZ!Box noch ein Sensor neue Daten liefert, startet das Board neu.
+Alle 30 Sekunden vergleicht FritzGate die Temperatur, die jedes Thermostat misst, mit der Temperatur des Raumsensors, den du dafür gewählt hast. Dann passt es den Offset des Thermostats an, damit die FRITZ!Box heizt, bis der Raum warm genug ist. FritzGate lässt den Offset unverändert, solange die Heizung aus ist oder der Sensor sich 5 Minuten lang nicht gemeldet hat.
 
-## Erste Schritte
+## Was du brauchst
 
-### Hardware-Anforderungen
+- Ein **Ai Thinker ESP32-CAM** Board mit einem **ESP32-CAM-MB** USB-Adapter. Das Board hat selbst keinen USB-Anschluss, und beides wird oft zusammen verkauft.
+- Ein USB-Datenkabel. Manche Kabel liefern nur Strom und funktionieren für die Installation nicht.
+- Mindestens ein [unterstütztes Bluetooth-Thermometer](#kompatible-sensoren).
+- Eine **FRITZ!Box** mit FRITZ!DECT 301 oder 302 Thermostaten.
+- Für die Installation einen Computer mit **Chrome** oder **Edge** (Windows, macOS oder Linux). Mit Firefox, Safari und Smartphones lässt sich die Firmware nicht installieren.
 
-- Ai Thinker ESP32-CAM Board und ein USB-Seriell-Adapter (oder ein ESP32-CAM-MB Board) zum Flashen
-- [Temperatursensoren](https://decoder.theengs.io/devices/devices.html)
-- FRITZ!Box mit kompatiblen Thermostaten (optional)
+## Installation
 
-### Installation
+### 1. FritzGate auf das Board installieren
 
-1. Klone das Repository auf deinen Computer:
+1. Stecke das ESP32-CAM-Board auf den MB-Adapter und verbinde ihn mit dem USB-Kabel mit deinem Computer.
+2. Öffne den [Web-Installer](https://fritzgate.elebree.com/flasher/) in Chrome oder Edge und klicke auf **FritzGate installieren**. Wähle den Port des Adapters, meist CH340 oder USB-SERIAL genannt, und bestätige. Die Installation dauert ein paar Minuten.
+3. Nach der Installation startet das Board neu. Passiert nichts, drück die RST-Taste auf dem Board.
 
-    ```bash
-    git clone https://github.com/elebree/fritzgate.git
-    ```
+Du möchtest FritzGate selbst bauen oder ein anderes Tool verwenden? Siehe [DEVELOPMENT.md](DEVELOPMENT.md) (auf Englisch).
 
-2. Baue die Firmware und lade sie mit [PlatformIO](https://platformio.org/) (empfohlen) oder der [Arduino IDE](https://www.arduino.cc/en/software) hoch.
+### 2. Das Board mit dem WLAN verbinden
 
-3. **PlatformIO:**
-   - Lade die Firmware vom Hauptverzeichnis des Repositorys aus hoch:
+1. Versorge das Board mit Strom, zum Beispiel über den USB-Anschluss deiner FRITZ!Box. Solange das Board auf die WLAN-Daten wartet, leuchtet die Blitz-LED alle zwei Sekunden schwach auf.
+2. Zeige der Kamera des Boards den QR-Code deines WLANs. Die Benutzeroberfläche der FRITZ!Box und die meisten Smartphones können diesen Code anzeigen.
+3. Das Board speichert die WLAN-Daten und startet neu. Während es sich verbindet, blinkt die Blitz-LED.
 
-     ```bash
-     pio run -t upload
-     ```
+Die Kamera brauchst du nur für diesen Schritt.
 
-   - Zeige der Kamera des Boards beim ersten Start einen WLAN-QR-Code. Der Code muss das Standardformat `WIFI:S:<Netzwerk>;T:WPA;P:<Passwort>;;` verwenden. Die Benutzeroberfläche der FRITZ!Box und die meisten Smartphones können einen solchen Code für dein Netzwerk anzeigen. Das Board speichert die Zugangsdaten und startet neu. Während das Board sich mit dem WLAN verbindet, blinkt die Blitz-LED.
+### 3. FritzGate mit deiner FRITZ!Box verbinden
 
-4. **Arduino IDE:**
-   - Installiere das Boardpaket **esp32** in Version **2.0.x**. Der PlatformIO-Build verwendet 2.0.11. Version 3.x wird nicht unterstützt.
-   - Installiere diese Bibliotheken: [ArduinoJson](https://github.com/bblanchon/ArduinoJson) 6.x, [NimBLE-Arduino](https://github.com/h2zero/NimBLE-Arduino) 1.x, [TheengsDecoder](https://github.com/theengs/decoder) 1.7.8 und [NTPClient](https://github.com/arduino-libraries/NTPClient).
-   - Öffne `src/src.ino` und wähle das Board **AI Thinker ESP32-CAM** mit dem Partitionsschema **Huge APP**. Die Firmware ist etwa 1,5 MB groß und passt nicht in die Standard-App-Partition.
-   - Trage dein WLAN und dein Passwort in `wifi_ssid` und `wifi_pass` der Struktur `Config` in `src/src.ino` ein. Alternativ kannst du [ESP32QRCodeReader](https://github.com/alvarowolfx/ESP32QRCodeReader) installieren und `#define READ_WIFI_QR_CODE` am Anfang von `src/src.ino` einfügen, um den WLAN-QR-Code wie oben beschrieben zu lesen.
-   - Lade den Sketch auf dein Board hoch.
+1. Öffne auf einem Computer oder Smartphone in deinem Heimnetz [http://fritzgate](http://fritzgate).
+2. Klicke auf **Connect to FRITZ!Box** und gib Folgendes ein:
+   - die Adresse deiner FRITZ!Box, meist `fritz.box`;
+   - Benutzername und Passwort eines FRITZ!Box-Benutzers mit der Berechtigung **Smart Home**.
 
-5. Öffne die Weboberfläche unter [http://fritzgate](http://fritzgate) oder unter der IP-Adresse, die dein Router dem Board zugewiesen hat. Der serielle Monitor (115200 Baud) zeigt die Adresse ebenfalls an.
+   Tipp: Lege in der FRITZ!Box unter **System > FRITZ!Box-Benutzer** einen eigenen Benutzer für FritzGate an und gib ihm nur die Berechtigung Smart Home.
 
-6. Öffne **Settings** und verbinde FritzGate mit deiner FRITZ!Box. Gib den Host (meist `fritz.box`) sowie Benutzername und Passwort eines FRITZ!Box-Benutzers mit der Berechtigung „Smart Home“ ein.
+Um den Login später zu ändern, klicke auf das Zahnrad neben **Thermostats**.
 
-7. Wähle auf der Seite **Settings** für jedes Thermostat einen Referenzsensor aus.
+### 4. Für jedes Thermostat einen Raumsensor wählen
+
+1. Halte die runde Anzeige eines Thermostats gedrückt, bis sich seine Einstellungen öffnen.
+2. Wähle unter **Reference sensor** das Thermometer in diesem Raum und klicke auf **Save**.
+
+Ab jetzt korrigiert FritzGate dieses Thermostat alle 30 Sekunden. Um die Korrektur zu beenden, wähle **Built-in thermostat sensor**.
+
+Stelle jedes Thermometer dort auf, wo du dich im Raum aufhältst, nicht in der Nähe des Heizkörpers und nicht in direktem Sonnenlicht. Das Board muss nah genug stehen, um die Bluetooth-Signale der Sensoren zu empfangen. Die Webseite zeigt die Signalstärke jedes Sensors an.
+
+## Aktualisieren
+
+Öffne den [Web-Installer](https://fritzgate.elebree.com/flasher/) erneut und installiere die neueste Version. Lass „Erase device“ deaktiviert, dann bleiben WLAN, FRITZ!Box-Login und Sensor-Auswahl erhalten.
+
+## Fehlerbehebung
+
+- **Der Installer findet keine Verbindung zum Board:** Halte die IO0-Taste gedrückt, drück kurz RST und lass dann IO0 los. Klicke erneut auf **FritzGate installieren**.
+- **Im Installer erscheint kein Port:** Probier ein anderes USB-Kabel. Fehlt der Port weiterhin, installiere den CH340-Treiber für den Adapter.
+- **http://fritzgate öffnet sich nicht:** Prüfe, ob dein Computer oder Smartphone im selben Netzwerk wie das Board ist. Probier [http://fritzgate.fritz.box](http://fritzgate.fritz.box) oder öffne die IP-Adresse des Boards, die die FRITZ!Box unter **Heimnetz > Netzwerk** anzeigt.
+- **Ein Sensor wird nicht angezeigt:** Prüfe, ob er in der [Liste der kompatiblen Sensoren](#kompatible-sensoren) steht, stelle das Board näher auf und prüfe die Batterie des Sensors.
 
 ## Kompatible Sensoren
 
-FritzGate funktioniert mit jedem Gerät, das [TheengsDecoder](https://github.com/theengs/decoder) v1.7.8 dekodieren kann und das eine Temperatur meldet. Einige Beispiele:
+FritzGate funktioniert mit Bluetooth-Thermometern, die der Open-Source-[Theengs Decoder](https://github.com/theengs/decoder) lesen kann. Hier einige davon:
 
 - **April Brother**: [ABN03](https://decoder.theengs.io/devices/ABN03.html), [ABN07](https://decoder.theengs.io/devices/ABN07.html), [ABTemp](https://decoder.theengs.io/devices/ABTemp.html)
 - **Aranet**: [Aranet4](https://decoder.theengs.io/devices/Aranet4.html)
@@ -99,24 +113,13 @@ FritzGate funktioniert mit jedem Gerät, das [TheengsDecoder](https://github.com
 - **Xiaomi/Mijia**: [LYWSD02](https://decoder.theengs.io/devices/LYWSD02.html)
 - **Xiaomi/VegTrug**: [HHCCJCY01HHCC](https://decoder.theengs.io/devices/HHCCJCY01HHCC.html)
 
-Die [Liste der Theengs-kompatiblen Geräte](https://decoder.theengs.io/devices/devices.html) folgt der neuesten Version von TheengsDecoder. Sie kann neuere Modelle enthalten, zum Beispiel den Shelly BLU H&T oder den Govee H5108, die FritzGate noch nicht unterstützt.
+Modelle mit dem Zusatz *ATC/PVVX* funktionieren nur mit der kostenlosen ATC- oder PVVX-Firmware. Mit der Original-Firmware von Xiaomi kann FritzGate sie nicht lesen.
 
-## Entwicklung
+Die [Liste der Theengs-Geräte](https://decoder.theengs.io/devices/devices.html) enthält auch neuere Modelle, zum Beispiel den Shelly BLU H&T oder den Govee H5108, die FritzGate noch nicht unterstützt.
 
-Das Repository besteht aus zwei Teilen, die zusammen als ein Firmware-Image ausgeliefert werden:
+## Für Entwickler
 
-- `src/` ist die ESP32-Firmware (C++, Arduino-Framework, gebaut mit PlatformIO).
-- `frontend/` ist die Svelte-Weboberfläche. Sie wird als `src/index_html.h` in die Firmware einkompiliert.
-
-Firmware-Befehle, ausgeführt im Hauptverzeichnis des Repositorys:
-
-```bash
-pio run                 # bauen
-pio run -t upload       # bauen und flashen
-pio device monitor      # serieller Monitor, 115200 Baud
-```
-
-Wenn du die Weboberfläche änderst, führe in `frontend/` den Befehl `pnpm run build:firmware` aus, um `src/index_html.h` neu zu erzeugen. Baue und flashe danach die Firmware erneut. Details findest du in [frontend/README.md](frontend/README.md) (auf Englisch).
+Wie du FritzGate aus dem Quellcode baust, mit anderen Tools flashst oder den Code änderst, steht in [DEVELOPMENT.md](DEVELOPMENT.md) (auf Englisch).
 
 ## Lizenz
 

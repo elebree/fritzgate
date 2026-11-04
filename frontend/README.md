@@ -12,7 +12,7 @@ serves that blob for every request outside `/api/`.
 
 ## Requirements
 
-- Node.js 26 (pinned in [`.node-version`](.node-version) and [`mise.toml`](mise.toml))
+- Node.js 26 (pinned in [`.node-version`](.node-version) and the root [`mise.toml`](../mise.toml))
 - [pnpm](https://pnpm.io/)
 
 ## Getting started
