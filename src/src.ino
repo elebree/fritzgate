@@ -264,6 +264,15 @@ bool syncFritzBox()
                          offset / 10.0);
             continue;
           }
+          // posting enabled holidays without their temperature disables them, so rather keep the offset
+          if (iter->enabledHolidays() > 0 && !fritzSession.query_holiday_temperature(*iter))
+          {
+            LOG_WARNINGF("Skip offset for \"%s\" %g -> %g: holiday temperature unknown",
+                         iter->name.c_str(),
+                         iter->offset / 10.0,
+                         offset / 10.0);
+            continue;
+          }
           LOG_INFOF("Updating offset for \"%s\": %g -> %g",
                     iter->name.c_str(),
                     iter->offset / 10.0,

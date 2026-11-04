@@ -243,6 +243,34 @@ bool Session::query_session_id()
   return true;
 }
 
+// Read the holiday temperature, which is not part of the device JSON, from the thermostat edit form
+bool Session::query_holiday_temperature(Thermostat &thermostat)
+{
+  HTTPClient http;
+  http.setReuse(false); // the form is not read to the end, close the connection instead of reusing it
+  http.begin(client, mHost.c_str(), mPort, "/data.lua", false);
+  http.addHeader("Content-Type", "application/x-www-form-urlencoded");
+  String body = String("xhr=1&sid=") + mSID.c_str() + "&device=" + thermostat.id.c_str() + "&page=home_auto_hkr_edit";
+  int httpCode = http.POST(body);
+  bool found = false;
+  if (httpCode == HTTP_CODE_OK)
+  {
+    LOG_HTTPF("HTTP POST /data.lua home_auto_hkr_edit: %d", httpCode);
+    found = FritzThermostat::parseHolidayTemperature(http.getStream(), thermostat);
+  }
+  else if (httpCode > 0)
+  {
+    LOG_ERRORF("HTTP POST /data.lua home_auto_hkr_edit: %d", httpCode);
+  }
+  else
+  {
+    reset_session();
+    LOG_ERRORF("HTTP POST failed: %s", http.errorToString(httpCode).c_str());
+  }
+  http.end();
+  return found;
+}
+
 // Post thermostat state
 bool Session::post_thermostat_state(Thermostat &thermostat)
 {

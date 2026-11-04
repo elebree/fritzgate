@@ -42,7 +42,15 @@ void FritzThermostat::printPostBody(Stream &stream, Thermostat &info, const char
     stream.printf("&view=");
     stream.printf("&back_to_page=%%2Fsmarthome%%2Fdevices.lua");
     stream.printf("&ule_device_name=%s", urlEncode(info.name.c_str()).c_str());
-    stream.printf("&hkr_adaptheat=%d", info.adaptiveHeating ? 1 : 0);
+
+    // checkboxes: like a browser, post them only when checked, a missing field switches the option off
+    if (info.buttonLocked)
+        stream.printf("&locklocal=on");
+    if (info.externalLocked)
+        stream.printf("&lockuiapp=on");
+    if (info.adaptiveHeating)
+        stream.printf("&hkr_adaptheat=1");
+
     stream.printf("&Heiztemp=%g", info.targetTemperatureHigh / 10.0);
     stream.printf("&Absenktemp=%g", info.targetTemperatureLow / 10.0);
     stream.printf("&graphState=1"); // ??
@@ -57,21 +65,26 @@ void FritzThermostat::printPostBody(Stream &stream, Thermostat &info, const char
                       iter->enabled() ? 1 : 0, iter->daysOfWeekMask());
     }
 
-    // the form hour is one more than the hour in the device JSON (form hour 1 is reported as "00:00:00")
+    // FRITZ!Box disables a holiday posted without the holiday temperature. The browser posts it whenever a holiday
+    // is enabled (the field is disabled while there is none), so do the same.
     const char *holiday = "&Holiday";
-    int enabledHolidays = 0;
+    int enabledHolidays = info.enabledHolidays();
+    if (enabledHolidays > 0 && info.holidayTemperature > 0)
+        stream.printf("&Holidaytemp=%g", info.holidayTemperature / 10.0);
+
+    // the form takes the hours as the device JSON reports them ("10:00:00" is posted as 10); the JSON reports
+    // "00:00:00" for every disabled holiday, whatever hour was posted
     for (int i = 1; i <= THERMOSTAT_HOLIDAYS; i++)
     {
         const YearlyPeriod &period = info.holidays[i - 1];
         stream.printf("%s%dStartDay=%d", holiday, i, period.startDay);
         stream.printf("%s%dStartMonth=%d", holiday, i, period.startMonth);
-        stream.printf("%s%dStartHour=%d", holiday, i, period.startHour + 1);
+        stream.printf("%s%dStartHour=%d", holiday, i, period.startHour);
         stream.printf("%s%dEndDay=%d", holiday, i, period.endDay);
         stream.printf("%s%dEndMonth=%d", holiday, i, period.endMonth);
-        stream.printf("%s%dEndHour=%d", holiday, i, period.endHour + 1);
+        stream.printf("%s%dEndHour=%d", holiday, i, period.endHour);
         stream.printf("%s%dEnabled=%d", holiday, i, period.enabled ? 1 : 0);
         stream.printf("%s%dID=%d", holiday, i, i);
-        enabledHolidays += period.enabled ? 1 : 0;
     }
     stream.printf("%sEnabledCount=%d", holiday, enabledHolidays);
 
@@ -90,6 +103,13 @@ void FritzThermostat::printPostBody(Stream &stream, Thermostat &info, const char
     stream.printf("&Roomtemp=%g", (info.temperature + info.offset) / 10.0);
     stream.printf("&ExtTempsensorID=%s", info.externalTemperatureSensorId.c_str());
     stream.printf("&Offset=%g", info.offset / 10.0);
+
+    // the mail address field is disabled, so not posted, while the push service is off
+    if (info.pushServiceEnabled)
+    {
+        stream.printf("&enabled=on");
+        stream.printf("&mailto=%s", urlEncode(info.pushServiceMail.c_str()).c_str());
+    }
     stream.printf("&apply=");
     stream.printf("&lang=en");
     stream.printf("&page=home_auto_hkr_edit");
@@ -113,6 +133,27 @@ static void parseYearlyPeriod(JsonObject schedule, JsonObject action, YearlyPeri
     period.startHour = atoi(timeSetting["startTime"] | "0");
     period.endHour = atoi(timeSetting["endTime"] | "0");
     period.enabled = schedule["isEnabled"].as<bool>() && action["isEnabled"].as<bool>();
+}
+
+bool FritzThermostat::parseHolidayTemperature(Stream &stream, Thermostat &info)
+{
+    // the hidden input the edit form posts: <input type="hidden" name="Holidaytemp" value="16" ...>
+    if (!stream.find("name=\"Holidaytemp\" value=\""))
+    {
+        LOG_ERROR("FRITZ holiday temperature missing");
+        return false;
+    }
+    String value = stream.readStringUntil('"');
+    value.replace(',', '.');
+    double temperature = atof(value.c_str());
+    // the form range, 7.5 is shown as "OFF" and 28.5 as "MAX"
+    if (temperature < 7.5 || temperature > 28.5)
+    {
+        LOG_ERRORF("FRITZ holiday temperature invalid: %s", value.c_str());
+        return false;
+    }
+    info.holidayTemperature = (uint32_t)(temperature * 10 + 0.5);
+    return true;
 }
 
 String FritzThermostat::getPostBody(Thermostat &info, const char *sid)
@@ -207,6 +248,20 @@ bool FritzThermostat::parseDevices(HTTPClient &http, std::vector<Thermostat> &th
                     info->temperatureSensor = (*skill)[_usedTempSensor]["id"].as<int>() == device["id"].as<int>() ? "own" : "unknown";
                     info->externalTemperatureSensorId = (*skill)[_usedTempSensor]["id"].as<int>() == device["id"].as<int>() ? "tochoose" : std::to_string(device["id"].as<int>()).c_str();
                     info->adaptiveHeating = (*skill)["adaptivHeating"]["isEnabled"].as<bool>();
+
+                    info->buttonLocked = false;
+                    info->externalLocked = false;
+                    for (JsonObject control : (*unit)["interactionControls"].as<JsonArray>())
+                    {
+                        const char *controlName = control["devControlName"] | "";
+                        if (strcmp(controlName, "BUTTON") == 0)
+                            info->buttonLocked = control["isLocked"].as<bool>();
+                        else if (strcmp(controlName, "EXTERNAL") == 0)
+                            info->externalLocked = control["isLocked"].as<bool>();
+                    }
+                    info->pushServiceEnabled = device["pushService"]["isEnabled"].as<bool>();
+                    info->pushServiceMail = device["pushService"]["mailAddress"] | "";
+
                     info->targetTemperature = (*skill)["targetTemp"].as<double>() * 10;
                     JsonArray presets = (*skill)["presets"];
                     for (JsonArray::iterator preset = presets.begin(); preset != presets.end(); preset += 1)

@@ -49,9 +49,17 @@ public:
     std::string temperatureSensor;
     std::string externalTemperatureSensorId;
     bool adaptiveHeating = false;
+    // "BUTTON" interaction control: buttons on the thermostat locked (form field locklocal)
+    bool buttonLocked = false;
+    // "EXTERNAL" interaction control: manual access by phone, app or user interface locked (form field lockuiapp)
+    bool externalLocked = false;
+    bool pushServiceEnabled = false;
+    std::string pushServiceMail;
     uint32_t targetTemperature = 0;
     uint32_t targetTemperatureLow = 0;
     uint32_t targetTemperatureHigh = 0;
+    // not part of the device JSON, read from the thermostat edit form before posting; 0 if unknown
+    uint32_t holidayTemperature = 0;
     int32_t offset = 0;
     unsigned long offsetTimestamp;
     std::vector<PresetAction> weeklyTimetable;
@@ -63,6 +71,8 @@ public:
         {11, 12, 0, 25, 12, 0, false}};
     YearlyPeriod summer = {1, 6, 0, 31, 8, 0, true};
     std::string referenceSensor;
+
+    int enabledHolidays() const;
 
 protected:
     virtual void SerializeBody(Stream &client, long timestamp, int indentLevel);

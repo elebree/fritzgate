@@ -28,6 +28,16 @@ void Thermostat::SerializeBody(Stream &client, long currentTimestamp, int indent
     client.printf("\"%s\": \"%s\"", nameof(referenceSensor), referenceSensor.c_str());
 }
 
+int Thermostat::enabledHolidays() const
+{
+    int count = 0;
+    for (int i = 0; i < THERMOSTAT_HOLIDAYS; i++)
+    {
+        count += holidays[i].enabled ? 1 : 0;
+    }
+    return count;
+}
+
 uint8_t PresetAction::hours() const
 {
     return (time >> 8) & 0xFF;

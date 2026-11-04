@@ -38,5 +38,6 @@ public:
   int post_request(HTTPClient &http, const char *path, const char *post_template);
   String query_data(const char *path, const char *post_template);
   bool query_devices(std::vector<Thermostat> &thermostats);
+  bool query_holiday_temperature(Thermostat &thermostat);
   bool post_thermostat_state(Thermostat &thermostat);
 };
