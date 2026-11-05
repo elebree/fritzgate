@@ -78,6 +78,28 @@ describe("FRITZ!Box connection", () => {
         cy.get("input[type=submit]").should("be.disabled");
       });
     });
+
+    it("explains values longer than FritzGate can store", () => {
+      cy.stubApi(withFritzStatus("CONNECTED"));
+      cy.visit("/#setup");
+
+      cy.get("dialog[open]").within(() => {
+        // The board stores 31 bytes per value
+        cy.get("input[name=pass]").type("x".repeat(31));
+        cy.get("input[name=pass]").should("not.have.attr", "aria-invalid");
+        cy.get("input[type=submit]").should("be.enabled");
+
+        cy.get("input[name=pass]").type("x");
+        cy.get("input[name=pass]").should("have.attr", "aria-invalid", "true");
+        cy.contains("at most 31 characters");
+        cy.get("input[type=submit]").should("be.disabled");
+
+        // ä takes two bytes
+        cy.get("input[name=pass]").clear().type("ä".repeat(16));
+        cy.get("input[name=pass]").should("have.attr", "aria-invalid", "true");
+        cy.get("input[type=submit]").should("be.disabled");
+      });
+    });
   });
 
   describe("dialog after Connect", () => {
@@ -161,6 +183,26 @@ describe("FRITZ!Box connection", () => {
         .should("contain", "failed to connect to FRITZ!Box with the provided credentials")
         .find("input[type=submit]")
         .should("exist");
+    });
+
+    it("stays on the form when FritzGate doesn't accept the credentials", () => {
+      cy.stubApi(withFritzStatus("CONNECTED"));
+      cy.intercept("POST", "**/api/fritzauth", {
+        statusCode: 400,
+        headers: corsHeaders,
+        body: { error: "host, user and pass can have at most 31 bytes each" },
+      }).as("fritzauth");
+      connect();
+
+      cy.get("dialog[open]")
+        .should("contain", "couldn't save the login details")
+        .and("not.contain", "connecting to FRITZ!Box")
+        .find("input[type=submit]")
+        .should("exist");
+      // Still open after the next status polls, which report the old connection
+      cy.wait("@status");
+      cy.wait("@status");
+      cy.get("dialog[open]").should("contain", "couldn't save the login details");
     });
 
     it("shows the form again when the first login fails right away", () => {

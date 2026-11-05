@@ -9,7 +9,8 @@ This document covers building FritzGate from source, flashing it without the web
 - The board listens for Bluetooth advertisements from nearby sensors, decodes them with [TheengsDecoder](https://github.com/theengs/decoder) and keeps an exponential moving average of the temperature for each sensor.
 - Every 30 seconds it reads the thermostats from the FRITZ!Box. For each thermostat bound to a sensor it calculates the offset as *sensor temperature − thermostat temperature*, rounds it to 0.5 °C, limits it to ±5 °C and sends it to the FRITZ!Box if it changed.
 - It does not change the offset if the sensor's last reading is older than 5 minutes or if the thermostat's heating is turned off.
-- If neither the FRITZ!Box nor any sensor sends updates for 5 minutes, the board restarts itself.
+- When a sensor is bound to a thermostat, the board saves the thermostat's offset. It writes that offset back when the thermostat is unbound, and while the sensor hasn't reported for an hour. Bindings saved by older versions have 0 °C as the saved offset. An unbound thermostat keeps its binding, with an empty sensor id, until the FRITZ!Box reports the saved offset.
+- If FRITZ!Box credentials are set but no thermostat data arrives from the FRITZ!Box for 5 minutes, the board restarts itself. Without credentials it doesn't restart, and only shows the sensors.
 - The board logs in to the FRITZ!Box with the PBKDF2 challenge-response scheme of `login_sid.lua?version=2`, so it never sends the password to the FRITZ!Box. The credentials are stored in the board's EEPROM. The web interface and its API use plain HTTP without authentication.
 
 ## Supported sensors

@@ -5,14 +5,15 @@
 #include <StreamString.h>
 #include <string>
 
-std::string FritzThermostat::urlEncode(const char *msg)
+// spaceAsPlus: form encoding, a space becomes "+"; in a URL path it must be "%20"
+std::string FritzThermostat::urlEncode(const char *msg, bool spaceAsPlus)
 {
     const char *hex = "0123456789ABCDEF";
     std::string encodedMsg = "";
 
     while (*msg != '\0')
     {
-        if (*msg == ' ')
+        if (*msg == ' ' && spaceAsPlus)
         {
             encodedMsg += '+';
         }
@@ -99,9 +100,11 @@ void FritzThermostat::printPostBody(Stream &stream, Thermostat &info, const char
     stream.printf("%sTrigger=%d", windowOpen, info.windowOpenTrigger + 3);
     stream.printf("%sTimer=%d", windowOpen, info.windowOpenTimer);
 
-    stream.printf("&tempsensor=%s", info.temperatureSensor.c_str());
+    // FritzGate sets the offset of the thermostat's own sensor, so it switches from an external sensor set in
+    // FRITZ!Box back to the own one: the reference sensor bound in FritzGate replaces it
+    stream.printf("&tempsensor=own");
     stream.printf("&Roomtemp=%g", (info.temperature + info.offset) / 10.0);
-    stream.printf("&ExtTempsensorID=%s", info.externalTemperatureSensorId.c_str());
+    stream.printf("&ExtTempsensorID=tochoose");
     stream.printf("&Offset=%g", info.offset / 10.0);
 
     // the mail address field is disabled, so not posted, while the push service is off
@@ -160,6 +163,23 @@ String FritzThermostat::getPostBody(Thermostat &info, const char *sid)
 {
     StreamString print;
     printPostBody(print, info, sid);
+    return print;
+}
+
+std::string FritzThermostat::getOffsetPath(const Thermostat &info)
+{
+    // the unit UID is the AIN ("12345 0123456"), which sh_control reports as uid and actorIdentificationNumber
+    const std::string &uid = info.uid.empty() ? info.serial : info.uid;
+    return "/api/v0/smarthome/configuration/units/" + urlEncode(uid.c_str(), false);
+}
+
+String FritzThermostat::getOffsetBody(int32_t offset)
+{
+    // only the offset: the PUT is a partial update, so the schedule, holidays and other settings stay untouched
+    StreamString print;
+    print.printf("{\"interfaces\":{\"thermostatInterface\":{\"temperatureOffset\":"
+                 "{\"sensorMode\":\"internal\",\"internalOffset\":%g}}}}",
+                 offset / 10.0);
     return print;
 }
 
@@ -226,6 +246,9 @@ bool FritzThermostat::parseDevices(HTTPClient &http, std::vector<Thermostat> &th
         }
 
         info->id = std::to_string(device["id"].as<int>());
+        bool isThermostat = false;
+        // the device's own temperature sensor unit, reported also while FRITZ!Box uses an external sensor
+        JsonObject ownTemperature;
         for (JsonArray::iterator unit = units.begin(); unit != units.end(); unit += 1)
         {
             JsonArray skills = (*unit)[_skills];
@@ -235,12 +258,18 @@ bool FritzThermostat::parseDevices(HTTPClient &http, std::vector<Thermostat> &th
                 {
                     info->battery = (*skill)["chargeLevelInPercent"].as<int>();
                 }
+                else if (strcmp((*skill)["type"], "SmartHomeTemperatureSensor") == 0)
+                {
+                    ownTemperature = skill->as<JsonObject>();
+                }
                 else if (strcmp((*skill)["type"], "SmartHomeThermostat") == 0)
                 {
+                    isThermostat = true;
                     info->model = device["model"].as<const char *>();
                     info->name = device["displayName"].as<const char *>();
                     const char *serial = device["actorIdentificationNumber"].as<const char *>();
                     info->serial = serial ? serial : "";
+                    info->uid = device["uid"] | "";
                     info->windowOpenTimer = (*skill)[_temperatureDropDetection]["doNotHeatOffsetInMinutes"].as<int>();
                     info->windowOpenTrigger = (*skill)[_temperatureDropDetection]["sensitivity"].as<int>();
 
@@ -274,13 +303,6 @@ bool FritzThermostat::parseDevices(HTTPClient &http, std::vector<Thermostat> &th
                         {
                             info->targetTemperatureHigh = (*preset)[_temperature].as<double>() * 10;
                         }
-                    }
-
-                    JsonArray sensorSkills = (*skill)[_usedTempSensor][_skills];
-                    for (JsonArray::iterator sensorSkill = sensorSkills.begin(); sensorSkill != sensorSkills.end(); sensorSkill += 1)
-                    {
-                        info->offset = (*sensorSkill)["offset"].as<double>() * 10;
-                        info->temperature = (*sensorSkill)["currentInCelsius"].as<double>() * 10 - info->offset;
                     }
 
                     // rebuild the timetable from scratch, otherwise switch points removed in FRITZ!Box survive in the
@@ -333,6 +355,26 @@ bool FritzThermostat::parseDevices(HTTPClient &http, std::vector<Thermostat> &th
                             parseYearlyPeriod(*timeSchedule, (*timeSchedule)["actions"][0], info->summer);
                         }
                     }
+                }
+            }
+        }
+
+        if (isThermostat)
+        {
+            // Temperature and offset of the thermostat's own sensor, not of usedTempSensor (they are the same while
+            // the thermostat uses its own sensor): FritzGate sets the offset of the own sensor and switches back to
+            // it from an external sensor set in FRITZ!Box.
+            // FRITZ!OS 8.26 can leave out currentInCelsius (seen for one thermostat in a capture); the offset can't
+            // be computed then, so the temperature is marked invalid.
+            info->temperatureValid = false;
+            if (!ownTemperature.isNull())
+            {
+                info->offset = ownTemperature["offset"].as<double>() * 10;
+                JsonVariant current = ownTemperature["currentInCelsius"];
+                if (!current.isNull())
+                {
+                    info->temperature = current.as<double>() * 10 - info->offset;
+                    info->temperatureValid = true;
                 }
             }
         }

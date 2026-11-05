@@ -27,7 +27,7 @@ A radiator thermostat measures the temperature right next to the hot radiator, n
 
 ## How it works
 
-Every 30 seconds, FritzGate compares the temperature each thermostat measures with the temperature of the room sensor you chose for it. Then it adjusts the thermostat's offset, so that the FRITZ!Box heats until the room is warm enough. FritzGate leaves the offset alone while the heating is off or when the sensor hasn't reported for 5 minutes.
+Every 30 seconds, FritzGate compares the temperature each thermostat measures with the temperature of the room sensor you chose for it. Then it adjusts the thermostat's offset, so that the FRITZ!Box heats until the room is warm enough. FritzGate leaves the offset alone while the heating is off or when the sensor hasn't reported for 5 minutes. If the sensor stays silent for an hour, FritzGate sets the offset back to the value it had before you chose the sensor, until the sensor reports again.
 
 ## What you need
 
@@ -71,7 +71,7 @@ To change the login later, click the gear icon next to **Thermostats**.
 1. Press and hold the round gauge of a thermostat until its settings open.
 2. Under **Reference sensor**, select the thermometer in that room and click **Save**.
 
-From now on, FritzGate corrects this thermostat every 30 seconds. To stop the correction, select **Built-in thermostat sensor**.
+From now on, FritzGate corrects this thermostat every 30 seconds. To stop the correction, select **Built-in thermostat sensor**. FritzGate then sets the offset back to the value it had before you chose the sensor.
 
 Place each thermometer where you spend time in the room, away from the radiator and direct sunlight. The board must be close enough to receive the sensors' Bluetooth signals; the web page shows the signal strength of each sensor.
 

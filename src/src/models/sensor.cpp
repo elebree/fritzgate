@@ -1,5 +1,6 @@
 #include "sensor.h"
 #include <math.h>
+#include "../json.h"
 
 inline const char *nameof_typecheck(const void *, const char *name) { return name; }
 #define nameof(A) nameof_typecheck((void *)&A, #A)
@@ -16,9 +17,10 @@ void Sensor::SerializeShort(Stream &client, int indentLevel)
     printIndent(client, indentLevel);
     client.printf("{");
     printIndent(client, indentLevel + 1);
-    client.printf("\"%s\": \"%s\",", nameof(name), name.c_str());
+    printJsonMember(client, nameof(name), name);
+    client.print(",");
     printIndent(client, indentLevel + 1);
-    client.printf("\"%s\": \"%s\"", nameof(id), id.c_str());
+    printJsonMember(client, nameof(id), id);
     printIndent(client, indentLevel);
     client.printf("}");
 }
@@ -35,15 +37,20 @@ void Sensor::Serialize(Stream &client, long currentTimestamp, int indentLevel)
 void Sensor::SerializeBody(Stream &client, long currentTimestamp, int indentLevel)
 {
     printIndent(client, indentLevel);
-    client.printf("\"%s\": \"%s\",", nameof(name), name.c_str());
+    printJsonMember(client, nameof(name), name);
+    client.print(",");
     printIndent(client, indentLevel);
-    client.printf("\"%s\": \"%s\",", nameof(id), id.c_str());
+    printJsonMember(client, nameof(id), id);
+    client.print(",");
     printIndent(client, indentLevel);
-    client.printf("\"%s\": \"%s\",", nameof(model), model.c_str());
+    printJsonMember(client, nameof(model), model);
+    client.print(",");
     printIndent(client, indentLevel);
-    client.printf("\"%s\": \"%s\",", nameof(serial), serial.c_str());
+    printJsonMember(client, nameof(serial), serial);
+    client.print(",");
     printIndent(client, indentLevel);
-    client.printf("\"%s\": \"%s\",", nameof(data), data.c_str());
+    printJsonMember(client, nameof(data), data);
+    client.print(",");
     printIndent(client, indentLevel);
     client.printf("\"%s\": %d,", nameof(battery), battery);
     printIndent(client, indentLevel);

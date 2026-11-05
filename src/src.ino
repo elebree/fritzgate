@@ -7,6 +7,7 @@
 #include "./src/bluetooth/GoveeSensorsScanner.h"
 #include "./src/bluetooth/TheengsSensorsScanner.h"
 #include "./src/logging.h"
+#include "./src/json.h"
 
 #include <EEPROM.h>
 #include <esp_http_server.h>
@@ -29,12 +30,29 @@
 #include "./src/qrcode/qr_code_reader.h"
 #endif
 
-// Watchdog timer: The device will restart automatically if
-// there are no updates from FritzBox and no sensor data for 5 minutes
+// Watchdog timer: the device restarts automatically if FRITZ!Box credentials are set, but no thermostat data arrives
+// from the FRITZ!Box for 5 minutes. Without credentials, loop() feeds it.
 #define WATCHDOG_TIMEOUT 60 * 5
 
 // FritzBox settings refresh interval: 30 seconds
 #define FRITZGATE_REFRESH_TIMEOUT 30
+
+// Seconds a reference sensor reading is used to correct the offset: 5 minutes
+#define REFERENCE_STALE_TIMEOUT (60 * 5)
+
+// Seconds without a reference sensor reading after which the thermostat gets back the offset it had before it was
+// bound, until the sensor reports again: 1 hour
+#define REFERENCE_LOST_TIMEOUT (60 * 60)
+
+// Seconds between NTP clock syncs: 1 hour. Between syncs, NTPClient counts the time with millis(), which wraps after
+// 49.7 days and would put the clock back by as much.
+#define NTP_SYNC_INTERVAL (60 * 60)
+
+// Seconds between NTP attempts while the clock was never synced: 1 minute. A failed attempt blocks loop() for a second.
+#define NTP_RETRY_INTERVAL 60
+
+// Marks Config::sensors_bindings_offsets as initialized
+#define OFFSETS_SIGNATURE 0xA501
 
 // Maximum number of sensors that can be handled
 #define MAX_SENSORS_COUNT 20
@@ -65,8 +83,19 @@ struct Config
   // Password for the FritzBox account
   char fritz_pass[32] = {};
 
-  // Sensor bindings (thermostat-sensor pairings)
+  // Sensor bindings (thermostat-sensor pairings), filled from the start. A thermostat with an empty sensor id was
+  // unbound: it keeps its binding until syncFritzBox() has restored its original offset.
   char sensors_bindings[MAX_SENSORS_COUNT][2][MAX_ID_LENGTH] = {};
+
+  // Fields added later go below, so that the fields above keep their place in a saved config. The EEPROM library fills
+  // the bytes it adds to a saved config with 0xFF.
+
+  // Offset in 0.1 °C that each bound thermostat had before it was bound, by binding index. It is restored when the
+  // thermostat is unbound or its reference sensor is lost.
+  int8_t sensors_bindings_offsets[MAX_SENSORS_COUNT] = {};
+
+  // OFFSETS_SIGNATURE once sensors_bindings_offsets is initialized
+  uint16_t offsets_signature = OFFSETS_SIGNATURE;
 };
 
 // Default and active configurations
@@ -75,6 +104,12 @@ Config config = {};
 
 // Tracks the last refresh timestamp for FritzBox Smart Home control
 unsigned long fritzSmartHomeControlLastRefreshMillis = 0;
+
+// Tracks when loop() last fed the watchdog while no FRITZ!Box credentials are set
+unsigned long watchdogLastFeedMillis = 0;
+
+// Tracks the last NTP clock sync attempt
+unsigned long ntpLastSyncMillis = 0;
 
 // char buffer[5 * 4 * 2 * 60 * 24 / 5] = {}; // overflowed by 1136 bytes
 
@@ -115,16 +150,84 @@ void enableLed(bool state)
   digitalWrite(FLASH_GPIO_NUM, state ? HIGH : LOW);
 }
 
-const char *getThermostatBindingSensorId(const char *thermistatId)
+/**
+ * Whether a string fits a fixed-size field with its terminating zero.
+ */
+template <int n>
+bool fitsField(const char (&field)[n], const char *value)
 {
-  if (thermistatId == NULL || strlen(thermistatId) == 0)
-    return "";
-  for (int i = 0; i < MAX_SENSORS_COUNT && config.sensors_bindings[i][0][0] != 0; i++)
+  return value != NULL && strlen(value) < n;
+}
+
+/**
+ * Copy a string into a fixed-size field. Returns false, and leaves the field unchanged, if it doesn't fit.
+ */
+template <int n>
+bool copyField(char (&field)[n], const char *value)
+{
+  if (!fitsField(field, value))
+    return false;
+  memcpy(field, value, strlen(value) + 1);
+  return true;
+}
+
+/**
+ * Terminate a fixed-size field. Older versions could fill it without its terminating zero.
+ */
+template <int n>
+void terminateField(char (&field)[n])
+{
+  field[n - 1] = 0;
+}
+
+/**
+ * Number of thermostat bindings, which fill config.sensors_bindings from the start.
+ */
+int countThermostatBindings()
+{
+  int count = 0;
+  while (count < MAX_SENSORS_COUNT && config.sensors_bindings[count][0][0] != 0)
+    count++;
+  return count;
+}
+
+/**
+ * Index of the binding of a thermostat in config.sensors_bindings, or -1.
+ */
+int findThermostatBinding(const char *thermostatId)
+{
+  if (thermostatId == NULL || thermostatId[0] == 0)
+    return -1;
+  int count = countThermostatBindings();
+  for (int i = 0; i < count; i++)
   {
-    if (strcmp(config.sensors_bindings[i][0], thermistatId) == 0)
-      return config.sensors_bindings[i][1];
+    if (strcmp(config.sensors_bindings[i][0], thermostatId) == 0)
+      return i;
   }
-  return "";
+  return -1;
+}
+
+/**
+ * Remove a thermostat binding, and move the bindings after it up.
+ */
+void removeThermostatBinding(int index)
+{
+  int count = countThermostatBindings();
+  if (index < 0 || index >= count)
+    return;
+  for (int i = index; i + 1 < count; i++)
+  {
+    memcpy(config.sensors_bindings[i], config.sensors_bindings[i + 1], sizeof(config.sensors_bindings[i]));
+    config.sensors_bindings_offsets[i] = config.sensors_bindings_offsets[i + 1];
+  }
+  memset(config.sensors_bindings[count - 1], 0, sizeof(config.sensors_bindings[count - 1]));
+  config.sensors_bindings_offsets[count - 1] = 0;
+}
+
+const char *getThermostatBindingSensorId(const char *thermostatId)
+{
+  int index = findThermostatBinding(thermostatId);
+  return index < 0 ? "" : config.sensors_bindings[index][1];
 }
 
 Thermostat *getThermostatById(const char *thermostatId)
@@ -146,35 +249,34 @@ Sensor *getThermostatBindingSensor(const char *thermistatId)
   return GetSensorById(sensorId);
 }
 
-void updateThermostatBinding(const char *thermostatId, const char *sensorId)
+/**
+ * Set the reference sensor of a thermostat; an empty sensor id unbinds it. A new binding saves the thermostat's
+ * current offset, and an unbound thermostat keeps its binding until syncFritzBox() has restored that offset.
+ * Returns false if the thermostat is unknown, an id is too long or all bindings are in use.
+ */
+bool updateThermostatBinding(const char *thermostatId, const char *sensorId)
 {
   auto thermostat = getThermostatById(thermostatId);
-  if (thermostat == NULL)
-    return;
+  if (thermostat == NULL || !fitsField(config.sensors_bindings[0][1], sensorId))
+    return false;
 
-  thermostat->referenceSensor = sensorId;
-
-  bool emptySensor = (sensorId == NULL || strlen(sensorId) == 0);
-  for (int src = 0, dst = 0; src < MAX_SENSORS_COUNT; src++, dst++)
+  int index = findThermostatBinding(thermostatId);
+  if (index < 0)
   {
-    const char *curThermostatId = config.sensors_bindings[src][0];
-    const char *curSensorId = config.sensors_bindings[src][1];
-    if (strcmp(curThermostatId, thermostatId) == 0 || strlen(curThermostatId) == 0)
+    if (sensorId[0] == 0)
     {
-      if (emptySensor && strcmp(curThermostatId, thermostatId) == 0)
-      {
-        dst--;
-        continue;
-      }
-      curThermostatId = emptySensor ? "" : thermostatId;
-      curSensorId = emptySensor ? "" : sensorId;
+      // not bound, nothing to restore
+      thermostat->referenceSensor = "";
+      return true;
     }
-
-    strncpy(config.sensors_bindings[dst][0], curThermostatId, MAX_ID_LENGTH);
-    strncpy(config.sensors_bindings[dst][1], curSensorId, MAX_ID_LENGTH);
-    if (strcmp(curThermostatId, thermostatId) == 0)
-      break;
+    index = countThermostatBindings();
+    if (index >= MAX_SENSORS_COUNT || !copyField(config.sensors_bindings[index][0], thermostatId))
+      return false;
+    config.sensors_bindings_offsets[index] = (int8_t)min(127, max(-127, (int)thermostat->offset));
   }
+  copyField(config.sensors_bindings[index][1], sensorId);
+  thermostat->referenceSensor = sensorId;
+  return true;
 }
 
 /**
@@ -227,6 +329,145 @@ class SensorsAdvertisedDeviceCallbacks : public SensorScannerCallback
 };
 
 /**
+ * Whether the thermostat uses an external temperature sensor set in FRITZ!Box. temperatureSensor is empty for devices
+ * that are no thermostats.
+ */
+bool usesExternalSensor(const Thermostat &thermostat)
+{
+  return !thermostat.temperatureSensor.empty() && thermostat.temperatureSensor != "own";
+}
+
+/**
+ * Write the offset of a thermostat, unless its state or the FRITZ!Box doesn't allow it now.
+ * Returns true if the offset was sent to the FRITZ!Box.
+ */
+bool writeThermostatOffset(Thermostat &thermostat, int32_t offset)
+{
+  if (thermostat.targetTemperature == 0)
+  {
+    LOG_WARNINGF("Skip offset for \"%s\" %g -> %g: heating off",
+                 thermostat.name.c_str(),
+                 thermostat.offset / 10.0,
+                 offset / 10.0);
+    return false;
+  }
+  if (!thermostat.temperatureValid)
+  {
+    LOG_WARNINGF("Skip offset for \"%s\": FRITZ!Box reports no temperature", thermostat.name.c_str());
+    return false;
+  }
+
+  FritzApi api = fritzSession.api();
+  if (api == FRITZ_API_REST)
+  {
+    LOG_INFOF("Updating offset for \"%s\": %g -> %g",
+              thermostat.name.c_str(),
+              thermostat.offset / 10.0,
+              offset / 10.0);
+    if (usesExternalSensor(thermostat))
+      LOG_INFOF("\"%s\": the reference sensor replaces the external sensor set in FRITZ!Box", thermostat.name.c_str());
+    if (fritzSession.put_thermostat_offset(thermostat, offset))
+    {
+      thermostat.offset = offset;
+      thermostat.offsetTimestamp = ntpClient.getEpochTime();
+    }
+    return true;
+  }
+  if (api == FRITZ_API_DATA_LUA)
+  {
+    // posting enabled holidays without their temperature disables them, so rather keep the offset
+    if (thermostat.enabledHolidays() > 0 && !fritzSession.query_holiday_temperature(thermostat))
+    {
+      LOG_WARNINGF("Skip offset for \"%s\" %g -> %g: holiday temperature unknown",
+                   thermostat.name.c_str(),
+                   thermostat.offset / 10.0,
+                   offset / 10.0);
+      return false;
+    }
+    LOG_INFOF("Updating offset for \"%s\": %g -> %g",
+              thermostat.name.c_str(),
+              thermostat.offset / 10.0,
+              offset / 10.0);
+    if (usesExternalSensor(thermostat))
+      LOG_INFOF("\"%s\": the reference sensor replaces the external sensor set in FRITZ!Box", thermostat.name.c_str());
+    thermostat.offset = offset;
+    thermostat.offsetTimestamp = ntpClient.getEpochTime();
+
+    LOG_BEGIN(LOG_COLOR_HTTP);
+    FritzThermostat::printPostBody(Serial, thermostat, fritzSession.sid().c_str());
+    LOG_ENDLN();
+
+    fritzSession.post_thermostat_state(thermostat);
+    return true;
+  }
+
+  // FRITZ_API_READ_ONLY (FRITZ!OS 8.0x-8.1x): no REST API, and posting the 7.x edit form could reset other settings;
+  // FRITZ_API_UNKNOWN: the session ended during this sync
+  LOG_WARNINGF("Skip offset for \"%s\" %g -> %g: %s",
+               thermostat.name.c_str(),
+               thermostat.offset / 10.0,
+               offset / 10.0,
+               api == FRITZ_API_READ_ONLY ? "FRITZ!OS without Smart Home REST API" : "not logged in");
+  return false;
+}
+
+/**
+ * Correct the offset of a bound thermostat from its reference sensor. When the thermostat was unbound or its sensor
+ * is lost, give it back the offset it had before it was bound. Returns true if an offset was sent to the FRITZ!Box.
+ */
+bool correctThermostat(Thermostat &thermostat, int binding, unsigned long timestamp)
+{
+  const char *sensorId = config.sensors_bindings[binding][1];
+  int32_t originalOffset = config.sensors_bindings_offsets[binding];
+  bool externalSensor = usesExternalSensor(thermostat);
+
+  if (sensorId[0] == 0)
+  {
+    // Unbound: once the original offset is back, forget the binding. An external sensor set in FRITZ!Box since then
+    // means that the user took over, so leave the thermostat alone.
+    if (thermostat.offset == originalOffset || externalSensor)
+    {
+      LOG_INFOF("\"%s\": unbound, offset %g", thermostat.name.c_str(), thermostat.offset / 10.0);
+      removeThermostatBinding(binding);
+      saveConfig();
+      return false;
+    }
+    LOG_INFOF("\"%s\": unbound, restoring the offset it had before", thermostat.name.c_str());
+    return writeThermostatOffset(thermostat, originalOffset);
+  }
+
+  Sensor *referenceSensor = GetSensorById(sensorId);
+  // Signed, as the sensor can report while this sync runs. A reading from further in the future means that the clock
+  // went back, so its real age is unknown: don't use it.
+  long age = referenceSensor ? (long)(timestamp - referenceSensor->timestamp) : (long)(millis() / 1000);
+  if (referenceSensor && age > -REFERENCE_STALE_TIMEOUT && age < REFERENCE_STALE_TIMEOUT)
+  {
+    auto refTemperature = (int)(referenceSensor->temperatureAvg * 10); // use average temp
+    auto offset = refTemperature - (int)thermostat.temperature;
+    offset = ((offset + ((offset > 0) - (offset < 0)) * 5 / 2) / 5) * 5; // round to 0.5 grad
+    offset = min(50, max(-50, offset));                                  // not more than 5 grad difference with ref sensor
+
+    // update offset if it is changed, or the thermostat still uses an external sensor set in FRITZ!Box
+    if (offset != thermostat.offset || externalSensor)
+      return writeThermostatOffset(thermostat, offset);
+    return false;
+  }
+
+  // No recent reading, or none since the start: keep the offset for a while, then restore the original one until the
+  // sensor reports again. A reading from the future keeps the offset until the sensor reports again. Leave an external
+  // sensor set in FRITZ!Box alone, as above.
+  if (age >= REFERENCE_LOST_TIMEOUT && thermostat.offset != originalOffset && !externalSensor)
+  {
+    LOG_WARNINGF("\"%s\": reference sensor %s not seen for %ld min, restoring the offset it had before",
+                 thermostat.name.c_str(),
+                 sensorId,
+                 age / 60);
+    return writeThermostatOffset(thermostat, originalOffset);
+  }
+  return false;
+}
+
+/**
  * Get state of FritzBox thermostats and update temperature offset if required.
  */
 bool syncFritzBox()
@@ -242,52 +483,10 @@ bool syncFritzBox()
     {
       iter->timestamp = timestamp;
       iter->referenceSensor = getThermostatBindingSensorId(iter->id.c_str());
-      Sensor *referenceSensor = GetSensorById(iter->referenceSensor.c_str());
-      if (referenceSensor)
-      {
-        //  auto refTemperature = (int)iter->referenceSensor->temperature; // use realtime temp
-        auto refTemperature = (int)(referenceSensor->temperatureAvg * 10); // use average temp
-        auto offset = refTemperature - (int)iter->temperature;
-        // Serial.printf("Offset for %s: %g\r\n", iter->name.c_str(), offset / 10.0);
-        //  round(offset / 5.0)
-        offset = ((offset + ((offset > 0) - (offset < 0)) * 5 / 2) / 5) * 5; // round to 0.5 grad
-        offset = min(50, max(-50, offset));                                  // not more than 5 grad difference with ref sensor
-
-        // update offset if it is changed and reference temperature not older than 5 minutes
-        if (offset != iter->offset && timestamp - referenceSensor->timestamp < 60 * 5) // reference temperature is not older than 5 minutes
-        {
-          if (iter->targetTemperature == 0)
-          {
-            LOG_WARNINGF("Skip offset for \"%s\" %g -> %g: heating off",
-                         iter->name.c_str(),
-                         iter->offset / 10.0,
-                         offset / 10.0);
-            continue;
-          }
-          // posting enabled holidays without their temperature disables them, so rather keep the offset
-          if (iter->enabledHolidays() > 0 && !fritzSession.query_holiday_temperature(*iter))
-          {
-            LOG_WARNINGF("Skip offset for \"%s\" %g -> %g: holiday temperature unknown",
-                         iter->name.c_str(),
-                         iter->offset / 10.0,
-                         offset / 10.0);
-            continue;
-          }
-          LOG_INFOF("Updating offset for \"%s\": %g -> %g",
-                    iter->name.c_str(),
-                    iter->offset / 10.0,
-                    offset / 10.0);
-          iter->offset = offset;
-          iter->offsetTimestamp = ntpClient.getEpochTime();
-
-          LOG_BEGIN(LOG_COLOR_HTTP);
-          FritzThermostat::printPostBody(Serial, *iter, fritzSession.sid().c_str());
-          LOG_ENDLN();
-
-          fritzSession.post_thermostat_state(*iter);
-          updates = true;
-        }
-      }
+      int binding = findThermostatBinding(iter->id.c_str());
+      if (binding >= 0 && correctThermostat(*iter, binding, timestamp))
+        updates = true;
+      // also when an offset is skipped: the FRITZ!Box answered, and a skip can hold for all thermostats
       feedWatchdog();
     }
 
@@ -314,6 +513,14 @@ void feedWatchdog()
 {
   LOG_INFO("Watchdog reset");
   esp_task_wdt_reset();
+}
+
+/**
+ * Whether FRITZ!Box host, user and password are set.
+ */
+bool fritzCredentialsConfigured()
+{
+  return config.fritz_host[0] != 0 && config.fritz_user[0] != 0 && config.fritz_pass[0] != 0;
 }
 
 void setupWatchdog()
@@ -380,6 +587,34 @@ void setupNTP()
 {
   ntpClient.begin();
   ntpClient.update();
+  ntpLastSyncMillis = millis();
+}
+
+/**
+ * Sync the clock with the NTP server every NTP_SYNC_INTERVAL, or every NTP_RETRY_INTERVAL until a sync worked. Sensor
+ * timestamps move with the clock, so that a step, such as the first sync after a failed one at boot, doesn't make
+ * their readings look older or newer than they are.
+ */
+void syncClock()
+{
+  unsigned long interval = ntpClient.isTimeSet() ? NTP_SYNC_INTERVAL : NTP_RETRY_INTERVAL;
+  if (millis() - ntpLastSyncMillis < interval * 1000UL)
+    return;
+  ntpLastSyncMillis = millis();
+
+  unsigned long before = ntpClient.getEpochTime();
+  if (!ntpClient.forceUpdate())
+  {
+    LOG_WARNING("NTP sync failed");
+    return;
+  }
+  long step = (long)(ntpClient.getEpochTime() - before);
+  if (step != 0)
+  {
+    LOG_INFOF("Clock moved by %ld s", step);
+    for (int i = 0; i < sensorsCount; i++)
+      sensors[i]->timestamp += step;
+  }
 }
 
 EEPROMClass storage("eeprom0");
@@ -423,6 +658,18 @@ void setupConfig()
 
   storage.get(0, config);
 
+  // older versions could save a value that fills its field, without the terminating zero
+  terminateField(config.wifi_ssid);
+  terminateField(config.wifi_pass);
+  terminateField(config.fritz_host);
+  terminateField(config.fritz_user);
+  terminateField(config.fritz_pass);
+  for (int i = 0; i < MAX_SENSORS_COUNT; i++)
+  {
+    terminateField(config.sensors_bindings[i][0]);
+    terminateField(config.sensors_bindings[i][1]);
+  }
+
   bool signatureMismatch = config.signature != defaultConfig.signature;
   if (signatureMismatch)
   {
@@ -439,10 +686,19 @@ void setupConfig()
   useDefaultIfNotDefined(config.fritz_pass, defaultConfig.fritz_pass, signatureMismatch, false);
   useDefaultIfNotDefined(config.fritz_host, defaultConfig.fritz_host, signatureMismatch, false);
 
-  if (signatureMismatch || (defaultConfig.sensors_bindings[0][0][0] != 0))
+  bool bindingsReset = signatureMismatch || (defaultConfig.sensors_bindings[0][0][0] != 0);
+  if (bindingsReset)
   {
     LOG_WARNING("Sensor bindings reset");
     memcpy(config.sensors_bindings, defaultConfig.sensors_bindings, sizeof(defaultConfig.sensors_bindings));
+  }
+  if (bindingsReset || config.offsets_signature != OFFSETS_SIGNATURE)
+  {
+    // saved by a version that didn't store the offsets the thermostats had before they were bound: assume 0 °C
+    memcpy(config.sensors_bindings_offsets,
+           defaultConfig.sensors_bindings_offsets,
+           sizeof(defaultConfig.sensors_bindings_offsets));
+    config.offsets_signature = OFFSETS_SIGNATURE;
   }
 
   saveConfig();
@@ -486,9 +742,7 @@ void setup()
   // initialize digital pin ledPin as an output
   pinMode(FLASH_GPIO_NUM, OUTPUT);
 
-  if (strlen(config.fritz_host) > 0 &&
-      strlen(config.fritz_user) > 0 &&
-      strlen(config.fritz_pass) > 0)
+  if (fritzCredentialsConfigured())
     fritzStatus = FRITZ_STATUS_CONFIGURED;
 
   fritzSession.configure(config.fritz_host, 80, config.fritz_user, config.fritz_pass);
@@ -507,19 +761,38 @@ bool startsWith(const char *str, const char *prefix)
 }
 
 /**
+ * Answer an API request with 400 Bad Request and an error message.
+ */
+void writeJsonError(Stream &client, const char *error)
+{
+  writeJsonHeaders(client, 400, "Bad Request");
+  client.print("{\"error\":");
+  printJsonString(client, error);
+  client.print("}");
+}
+
+/**
  * This is the Arduino main loop function.
  */
 void loop()
 {
+  bool fritzConfigured = fritzCredentialsConfigured();
+
+  syncClock();
+
   // Fetch data from FritzBox every 30 seconds
-  if (
-      strlen(config.fritz_host) > 0 &&
-      strlen(config.fritz_user) > 0 &&
-      strlen(config.fritz_pass) > 0 &&
-      millis() - fritzSmartHomeControlLastRefreshMillis >= (FRITZGATE_REFRESH_TIMEOUT) * 1000UL)
+  if (fritzConfigured && millis() - fritzSmartHomeControlLastRefreshMillis >= (FRITZGATE_REFRESH_TIMEOUT) * 1000UL)
   {
     fritzSmartHomeControlLastRefreshMillis = millis();
     syncFritzBox();
+  }
+
+  // Without FRITZ!Box credentials there is no sync to feed the watchdog, and the board only shows the sensors. A timer
+  // of its own, so that the first sync still starts right after the credentials are set.
+  if (!fritzConfigured && millis() - watchdogLastFeedMillis >= (FRITZGATE_REFRESH_TIMEOUT) * 1000UL)
+  {
+    watchdogLastFeedMillis = millis();
+    feedWatchdog();
   }
 
   // listen for incoming clients
@@ -551,7 +824,11 @@ void loop()
           {
             long timestamp = ntpClient.getEpochTime();
             writeJsonHeaders(client);
-            client.printf("{\"fritz\":{\"status\":\"%s\",\"host\":\"%s\",\"user\":\"%s\"},\"sensors\":[", fritzStatus, config.fritz_host, config.fritz_user);
+            client.printf("{\"fritz\":{\"status\":\"%s\",", fritzStatus);
+            printJsonMember(client, "host", config.fritz_host);
+            client.print(",");
+            printJsonMember(client, "user", config.fritz_user);
+            client.print("},\"sensors\":[");
             for (int i = 0; i < sensorsCount; i++)
             {
               sensors[i]->Serialize(client, timestamp, 1);
@@ -575,47 +852,64 @@ void loop()
           }
           else if (startsWith(linebuf, "POST /api/fritzauth"))
           {
-            DynamicJsonDocument fritzauth(200);
-            deserializeJson(fritzauth, client, DeserializationOption::NestingLimit(2));
+            DynamicJsonDocument fritzauth(512);
+            DeserializationError error = deserializeJson(fritzauth, client, DeserializationOption::NestingLimit(2));
 
-            const char *host = fritzauth["host"].as<const char *>();
-            const char *user = fritzauth["user"].as<const char *>();
-            const char *pass = fritzauth["pass"].as<const char *>();
+            const char *host = fritzauth["host"] | "";
+            const char *user = fritzauth["user"] | "";
+            const char *pass = fritzauth["pass"] | "";
 
-            if (host != NULL && strlen(host) > 0 && user != NULL && strlen(user) > 0 && pass != NULL && strlen(pass) > 0)
+            if (error || host[0] == 0 || user[0] == 0 || pass[0] == 0)
             {
-              strncpy(config.fritz_host, host, sizeof(config.fritz_host));
-              strncpy(config.fritz_user, user, sizeof(config.fritz_user));
-              strncpy(config.fritz_pass, pass, sizeof(config.fritz_pass));
+              writeJsonError(client, "host, user and pass are required");
+            }
+            else if (!fitsField(config.fritz_host, host) ||
+                     !fitsField(config.fritz_user, user) ||
+                     !fitsField(config.fritz_pass, pass))
+            {
+              writeJsonError(client, "host, user and pass can have at most 31 bytes each");
+            }
+            else
+            {
+              copyField(config.fritz_host, host);
+              copyField(config.fritz_user, user);
+              copyField(config.fritz_pass, pass);
               fritzStatus = FRITZ_STATUS_CONFIGURED;
               saveConfig();
               fritzSession.configure(config.fritz_host, 80, config.fritz_user, config.fritz_pass);
-            }
 
-            writeJsonHeaders(client);
-            client.print("{}");
+              writeJsonHeaders(client);
+              client.print("{}");
+            }
             client.flush();
             break;
           }
           else if (startsWith(linebuf, "POST /api/thermostat"))
           {
             DynamicJsonDocument thermostat(200);
-            deserializeJson(thermostat, client, DeserializationOption::NestingLimit(2));
+            DeserializationError error = deserializeJson(thermostat, client, DeserializationOption::NestingLimit(2));
 
-            const char *thermostatId = thermostat["id"].as<const char *>();
-            const char *referenceSensor = thermostat["referenceSensor"].as<const char *>();
-            updateThermostatBinding(thermostatId, referenceSensor);
+            const char *thermostatId = thermostat["id"] | "";
+            const char *referenceSensor = thermostat["referenceSensor"] | "";
+            if (error || !updateThermostatBinding(thermostatId, referenceSensor))
+            {
+              writeJsonError(client, "unknown thermostat, id too long or no free binding");
+              client.flush();
+              break;
+            }
             saveConfig();
 
             writeJsonHeaders(client);
 
             client.printf("{\"sensors_bindings\":[");
-            for (int i = 0; i < MAX_SENSORS_COUNT && config.sensors_bindings[i][0][0] != 0; i++)
+            int count = countThermostatBindings();
+            for (int i = 0; i < count; i++)
             {
-              client.printf("[\"%s\",\"%s\"]%s",
-                            config.sensors_bindings[i][0],
-                            config.sensors_bindings[i][1],
-                            (i == MAX_SENSORS_COUNT - 1 || config.sensors_bindings[i + 1][0][0]) == 0 ? "" : ",");
+              client.print(i == 0 ? "[" : ",[");
+              printJsonString(client, config.sensors_bindings[i][0]);
+              client.print(",");
+              printJsonString(client, config.sensors_bindings[i][1]);
+              client.print("]");
             }
             client.print("]}");
             client.flush();

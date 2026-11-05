@@ -60,6 +60,17 @@ void Session::reset_session()
 {
   mSID = "";
   mSessionExpiration = 0;
+  mApi = FRITZ_API_UNKNOWN;
+}
+
+FritzApi Session::api() const
+{
+  return mApi;
+}
+
+const std::string &Session::version() const
+{
+  return mVersion;
 }
 
 void Session::configure(const char *host, int port, const char *username, const char *password)
@@ -97,7 +108,129 @@ bool Session::ensure_connection()
     return false;
   }
 
+  if (!detect_api())
+  {
+    LOG_ERROR("FRITZ!Box API detection failed");
+    reset_session();
+    return false;
+  }
+
   mSessionExpiration = std::time(nullptr) + mTimeTillLogout;
+  return true;
+}
+
+// Keeps the first non-whitespace character of a response body and drops the rest, so a large body needs no memory
+class FirstCharStream : public Stream
+{
+public:
+  char first = 0;
+
+  size_t write(uint8_t c) override
+  {
+    if (first == 0 && !isspace(c))
+      first = c;
+    return 1;
+  }
+
+  size_t write(const uint8_t *buffer, size_t size) override
+  {
+    for (size_t i = 0; i < size && first == 0; i++)
+      write(buffer[i]);
+    return size;
+  }
+
+  int available() override { return 0; }
+  int read() override { return -1; }
+  int peek() override { return -1; }
+};
+
+void Session::add_rest_auth_header(HTTPClient &http)
+{
+  http.addHeader("Authorization", String("AVM-SID ") + mSID.c_str());
+}
+
+// Read the FRITZ!OS version, e.g. "8.26", from jason_boxinfo.xml, which needs no login
+void Session::query_version()
+{
+  mVersion = "";
+  HTTPClient http;
+  http.begin(client, mHost.c_str(), mPort, "/jason_boxinfo.xml", false);
+  int httpCode = http.GET();
+  if (httpCode == HTTP_CODE_OK)
+  {
+    // <j:Version>271.08.26</j:Version>: hardware id, major and minor version
+    String payload = http.getString();
+    std::string version = getTagValue(payload.c_str(), "<j:Version>", "</j:Version>");
+    int major, minor;
+    if (sscanf(version.c_str(), "%*d.%d.%d", &major, &minor) == 2)
+    {
+      char buffer[16];
+      snprintf(buffer, sizeof(buffer), "%d.%02d", major, minor);
+      mVersion = buffer;
+    }
+  }
+  else
+  {
+    LOG_WARNINGF("HTTP GET /jason_boxinfo.xml: %d", httpCode);
+  }
+  http.end();
+}
+
+// 1 if the Smart Home REST API (FRITZ!OS 8.20+) answers, 0 if not, -1 if the request failed
+int Session::probe_rest_api()
+{
+  const char *path = "/api/v0/smarthome/overview/units";
+  HTTPClient http;
+  http.begin(client, mHost.c_str(), mPort, path, false);
+  add_rest_auth_header(http);
+  int httpCode = http.GET();
+  int result = 0;
+  if (httpCode == HTTP_CODE_OK)
+  {
+    // check the body too, an unknown path may be answered with an HTML page
+    FirstCharStream body;
+    http.writeToStream(&body);
+    result = body.first == '[' ? 1 : 0;
+  }
+  else if (httpCode <= 0)
+  {
+    LOG_ERRORF("HTTP GET failed: %s", http.errorToString(httpCode).c_str());
+    result = -1;
+  }
+  LOG_HTTPF("HTTP GET %s: %d", path, httpCode);
+  http.end();
+  return result;
+}
+
+// Choose how to write the offset. Runs after each login: a FRITZ!OS update reboots the FRITZ!Box, which forces a new
+// login, so FritzGate switches the API without a restart.
+bool Session::detect_api()
+{
+  query_version();
+  int major = 0, minor = 0;
+  bool versionKnown = sscanf(mVersion.c_str(), "%d.%d", &major, &minor) == 2;
+  if (versionKnown && major < 8)
+  {
+    // FRITZ!OS 7.x has no REST API, no need to probe it
+    mApi = FRITZ_API_DATA_LUA;
+  }
+  else
+  {
+    int rest = probe_rest_api();
+    if (rest < 0)
+      return false;
+    if (rest > 0)
+      mApi = FRITZ_API_REST;
+    else if (versionKnown)
+      mApi = FRITZ_API_READ_ONLY; // FRITZ!OS 8.0x-8.1x, the REST API came with 8.20
+    else
+      mApi = FRITZ_API_DATA_LUA; // version unknown and no REST API: as before, treat it as 7.x
+  }
+
+  const char *apiName = mApi == FRITZ_API_REST       ? "Smart Home REST API"
+                        : mApi == FRITZ_API_DATA_LUA ? "data.lua form"
+                                                     : "none (read-only)";
+  LOG_SUCCESSF("FRITZ!OS %s, offset written with: %s", mVersion.empty() ? "unknown" : mVersion.c_str(), apiName);
   return true;
 }
 
@@ -150,6 +283,11 @@ int Session::post_request(HTTPClient &http, const char *path, const char *post_t
     {
       // update session after successful request
       mSessionExpiration = std::time(nullptr) + mTimeTillLogout;
+    }
+    else if (httpCode == HTTP_CODE_UNAUTHORIZED || httpCode == HTTP_CODE_FORBIDDEN)
+    {
+      // FRITZ!OS 8.x can end a session early, log in again with the next sync
+      reset_session();
     }
     LOG_HTTPF("HTTP POST %s: %d", path, httpCode);
   }
@@ -300,4 +438,39 @@ bool Session::post_thermostat_state(Thermostat &thermostat)
   }
   http.end();
   return true;
+}
+
+// Set only the offset with the Smart Home REST API (FRITZ!OS 8.20+); true if FRITZ!Box accepted it
+bool Session::put_thermostat_offset(Thermostat &thermostat, int32_t offset)
+{
+  std::string path = FritzThermostat::getOffsetPath(thermostat);
+  String body = FritzThermostat::getOffsetBody(offset);
+  LOG_HTTPF("HTTP PUT %s %s", path.c_str(), body.c_str());
+
+  HTTPClient http;
+  http.begin(client, mHost.c_str(), mPort, path.c_str(), false);
+  add_rest_auth_header(http);
+  http.addHeader("Content-Type", "application/json");
+  int httpCode = http.PUT(body);
+  bool accepted = httpCode >= 200 && httpCode < 300;
+  if (accepted)
+  {
+    mSessionExpiration = std::time(nullptr) + mTimeTillLogout;
+    LOG_HTTPF("HTTP PUT %s: %d", path.c_str(), httpCode);
+  }
+  else if (httpCode > 0)
+  {
+    // the REST API explains errors: {"errors":[{"code":...,"field":...,"message":...}]}
+    String payload = http.getString();
+    LOG_ERRORF("HTTP PUT %s: %d %s", path.c_str(), httpCode, payload.substring(0, 300).c_str());
+    if (httpCode == HTTP_CODE_UNAUTHORIZED || httpCode == HTTP_CODE_FORBIDDEN)
+      reset_session(); // log in again with the next sync
+  }
+  else
+  {
+    reset_session();
+    LOG_ERRORF("HTTP PUT failed: %s", http.errorToString(httpCode).c_str());
+  }
+  http.end();
+  return accepted;
 }

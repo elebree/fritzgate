@@ -1,5 +1,6 @@
 #include "thermostat.h"
 #include "sensor.h"
+#include "../json.h"
 
 const char *nameof_typecheck(const void *, const char *name) { return name; }
 #define nameof(A) nameof_typecheck((void *)&A, #A)
@@ -9,9 +10,11 @@ void Thermostat::SerializeBody(Stream &client, long currentTimestamp, int indent
     Sensor::SerializeBody(client, currentTimestamp, indentLevel);
     client.printf(",");
     printIndent(client, indentLevel);
-    client.printf("\"%s\": \"%s\",", nameof(externalTemperatureSensorId), externalTemperatureSensorId.c_str());
+    printJsonMember(client, nameof(externalTemperatureSensorId), externalTemperatureSensorId);
+    client.print(",");
     printIndent(client, indentLevel);
-    client.printf("\"%s\": \"%s\",", nameof(temperatureSensor), temperatureSensor.c_str());
+    printJsonMember(client, nameof(temperatureSensor), temperatureSensor);
+    client.print(",");
     printIndent(client, indentLevel);
     client.printf("\"%s\": %g,", nameof(offset), offset / 10.0);
     printIndent(client, indentLevel);
@@ -25,7 +28,7 @@ void Thermostat::SerializeBody(Stream &client, long currentTimestamp, int indent
 
     // serialize reference sensor
     printIndent(client, indentLevel);
-    client.printf("\"%s\": \"%s\"", nameof(referenceSensor), referenceSensor.c_str());
+    printJsonMember(client, nameof(referenceSensor), referenceSensor);
 }
 
 int Thermostat::enabledHolidays() const

@@ -23,9 +23,9 @@ void writeHttpStatus(Stream &client, int status = 200, const char *message = "OK
   writeHttpHeader(client, HeaderConnection, "close"); // the connection will be closed after completion of the response
 }
 
-void writeJsonHeaders(Stream &client)
+void writeJsonHeaders(Stream &client, int status = 200, const char *message = "OK")
 {
-  writeHttpStatus(client);
+  writeHttpStatus(client, status, message);
   writeHttpHeader(client, HeaderAccessControlAllowOrigin, "*");
   writeHttpHeader(client, HeaderAccessControlAllowMethods, "POST, GET, OPTIONS");
   writeHttpHeader(client, HeaderAccessControlAllowHeaders, HeaderContentType);

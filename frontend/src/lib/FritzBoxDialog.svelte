@@ -19,7 +19,17 @@
   let updatesSinceSubmit = 0;
   // The gateway was seen connecting while the dialog is open
   let reconnecting = false;
+  // The gateway didn't accept the credentials, or couldn't be reached
+  let rejected = false;
 
+  // The board stores each value in 32 bytes, including the terminating zero
+  const MAX_BYTES = 31;
+  const encoder = new TextEncoder();
+  const tooLong = (value: string | undefined) =>
+    !!value && encoder.encode(value).length > MAX_BYTES;
+  const TOO_LONG = `too long: FritzGate can store at most ${MAX_BYTES} characters (ä, ö, ü and ß count as two)`;
+
+  $: invalid = !host || !user || !pass || tooLong(host) || tooLong(user) || tooLong(pass);
   $: onStatus(data?.fritz?.status);
 
   function onStatus(fritzStatus: string | undefined) {
@@ -42,7 +52,14 @@
   }
 
   async function submitForm() {
-    await api.setConfig(host, user, pass);
+    rejected = false;
+    try {
+      const response = await api.setConfig(host, user, pass);
+      rejected = !response.ok;
+    } catch {
+      rejected = true;
+    }
+    if (rejected) return;
     submitted = true;
     updatesSinceSubmit = 0;
     reconnecting = false;
@@ -81,7 +98,11 @@
         <mark>This is a demo: enter any password. Nothing is sent to a FRITZ!Box.</mark>
       </p>
     {/if}
-    {#if status === Status.failure}
+    {#if rejected}
+      <p>
+        <mark>couldn't save the login details, please try again</mark>
+      </p>
+    {:else if status === Status.failure}
       <p>
         <mark>failed to connect to FRITZ!Box with the provided credentials</mark>
       </p>
@@ -96,7 +117,9 @@
           required
           bind:value={host}
           autocomplete="off"
+          aria-invalid={tooLong(host) || undefined}
         />
+        {#if tooLong(host)}<small>{TOO_LONG}</small>{/if}
       </label>
       <label>
         Username
@@ -107,7 +130,9 @@
           required
           bind:value={user}
           autocomplete="off"
+          aria-invalid={tooLong(user) || undefined}
         />
+        {#if tooLong(user)}<small>{TOO_LONG}</small>{/if}
       </label>
       <label>
         Password
@@ -118,12 +143,14 @@
           required
           bind:value={pass}
           autocomplete="off"
+          aria-invalid={tooLong(pass) || undefined}
         />
+        {#if tooLong(pass)}<small>{TOO_LONG}</small>{/if}
       </label>
 
       <input
         type="submit"
-        disabled={!host || !user || !pass}
+        disabled={invalid}
         value="Connect FritzGate to FRITZ!Box"
       />
     </form>
