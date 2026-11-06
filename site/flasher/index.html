@@ -253,7 +253,7 @@
     <!-- ============ INSTALL ============ -->
     <section class="hero">
       <div class="wrap">
-        <p class="kicker" data-i18n="hero.kicker">Web installer</p>
+        <p class="kicker" data-i18n="hero.kicker">Web flasher</p>
         <h1 data-i18n="hero.title">Install FritzGate from your browser</h1>
         <p class="sub" data-i18n="hero.sub">Flash the latest release onto an Ai Thinker ESP32-CAM over USB. You don't need PlatformIO, the Arduino IDE or any other software.</p>
 
@@ -269,7 +269,7 @@
               <span data-i18n="install.button">Install FritzGate</span>
             </button>
             <p slot="unsupported" class="notice warn" data-i18n="install.unsupported">Your browser can't access USB devices. Open this page in Chrome or Edge on a computer.</p>
-            <p slot="not-allowed" class="notice warn" data-i18n="install.notAllowed">The installer only works on a page loaded over HTTPS.</p>
+            <p slot="not-allowed" class="notice warn" data-i18n="install.notAllowed">The flasher only works on a page loaded over HTTPS.</p>
           </esp-web-install-button>
 
           <p class="notice warn" id="noRelease" hidden>
@@ -319,7 +319,7 @@
         <div class="grid g-5">
           <div class="card"><div class="num">1</div><h3 data-i18n="steps.s1.t">Connect the board</h3><p data-i18n="steps.s1.d">Put the ESP32-CAM on the MB adapter and connect it to your computer.</p></div>
           <div class="card"><div class="num">2</div><h3 data-i18n="steps.s2.t">Click Install</h3><p data-i18n="steps.s2.d">Choose the adapter's serial port, usually named CH340 or USB-SERIAL, and confirm. Installing takes a few minutes.</p></div>
-          <div class="card"><div class="num">3</div><h3 data-i18n="steps.s3.t">Restart</h3><p data-i18n="steps.s3.d">The board restarts when the installer is done. If nothing happens, press the RST button.</p></div>
+          <div class="card"><div class="num">3</div><h3 data-i18n="steps.s3.t">Restart</h3><p data-i18n="steps.s3.d">The board restarts when the flasher is done. If nothing happens, press the RST button.</p></div>
           <div class="card"><div class="num">4</div><h3 data-i18n="steps.s4.t">Scan a Wi-Fi QR code</h3><p data-i18n="steps.s4.d">Show a Wi-Fi QR code to the camera. Your FRITZ!Box and most phones can show one for your network. The flash LED blinks while the board connects.</p></div>
           <div class="card"><div class="num">5</div><h3 data-i18n="steps.s5.t">Open FritzGate</h3><p data-i18n="steps.s5.d">Go to http://fritzgate and click Connect to FRITZ!Box to enter your login. Then hold a thermostat's gauge to pick its reference sensor.</p></div>
         </div>
@@ -334,10 +334,10 @@
           <h2 class="section-title" data-i18n="help.title">If something goes wrong</h2>
         </div>
         <div class="faq">
-          <details class="q"><summary><span data-i18n="help.q1">The installer can't connect to the board</span><span class="plus" aria-hidden="true"></span></summary><div class="a" data-i18n="help.a1">Put the board into download mode: hold the IO0 button, press and release RST, then release IO0. Click Install again.</div></details>
+          <details class="q"><summary><span data-i18n="help.q1">The flasher can't connect to the board</span><span class="plus" aria-hidden="true"></span></summary><div class="a" data-i18n="help.a1">Put the board into download mode: hold the IO0 button, press and release RST, then release IO0. Click Install again.</div></details>
           <details class="q"><summary><span data-i18n="help.q2">No serial port shows up</span><span class="plus" aria-hidden="true"></span></summary><div class="a" data-i18n="help.a2">Try another USB cable, because some cables only carry power. If the port still doesn't appear, install the CH340 driver for the adapter.</div></details>
-          <details class="q"><summary><span data-i18n="help.q3">I use a USB-to-serial adapter instead of the MB adapter</span><span class="plus" aria-hidden="true"></span></summary><div class="a" data-i18n="help.a3">Connect GND to GND, 5V to 5V, the adapter's TX to U0R and its RX to U0T. Connect IO0 to GND, then power the board and click Install. When the installer is done, remove the IO0 wire and press RST.</div></details>
-          <details class="q"><summary><span data-i18n="help.q4">Will updating delete my settings?</span><span class="plus" aria-hidden="true"></span></summary><div class="a" data-i18n="help.a4">No, as long as “Erase device” stays unchecked. The installer only replaces the firmware and keeps your Wi-Fi, FRITZ!Box login and sensor bindings.</div></details>
+          <details class="q"><summary><span data-i18n="help.q3">I use a USB-to-serial adapter instead of the MB adapter</span><span class="plus" aria-hidden="true"></span></summary><div class="a" data-i18n="help.a3">Connect GND to GND, 5V to 5V, the adapter's TX to U0R and its RX to U0T. Connect IO0 to GND, then power the board and click Install. When the flasher is done, remove the IO0 wire and press RST.</div></details>
+          <details class="q"><summary><span data-i18n="help.q4">Will updating delete my settings?</span><span class="plus" aria-hidden="true"></span></summary><div class="a" data-i18n="help.a4">No, as long as “Erase device” stays unchecked. The flasher only replaces the firmware and keeps your Wi-Fi, FRITZ!Box login and sensor bindings.</div></details>
           <details class="q"><summary><span data-i18n="help.q5">Can I use a different flashing tool?</span><span class="plus" aria-hidden="true"></span></summary><div class="a"><span data-i18n="help.a5">Yes. Each release on GitHub includes a complete image, fritzgate-&lt;version&gt;-full.bin. Write it to address 0x0 with esptool or Espressif's Flash Download Tool. The complete image also erases saved settings.</span> <a href="https://github.com/elebree/fritzgate/releases" target="_blank" rel="noopener" data-i18n="help.releases">All releases</a></div></details>
         </div>
       </div>
@@ -366,13 +366,13 @@
       /* ---------- i18n dictionary ---------- */
       var I18N = {
         en: {
-          "hero.kicker": "Web installer",
+          "hero.kicker": "Web flasher",
           "hero.title": "Install FritzGate from your browser",
           "hero.sub": "Flash the latest release onto an Ai Thinker ESP32-CAM over USB. You don't need PlatformIO, the Arduino IDE or any other software.",
           "release.latest": "Latest release", "release.notes": "Release notes",
           "install.button": "Install FritzGate",
           "install.unsupported": "Your browser can't access USB devices. Open this page in Chrome or Edge on a computer.",
-          "install.notAllowed": "The installer only works on a page loaded over HTTPS.",
+          "install.notAllowed": "The flasher only works on a page loaded over HTTPS.",
           "install.noRelease": "No firmware release is published yet. Until then, build and flash FritzGate as described in the installation guide.",
           "install.guide": "Installation guide",
           "install.keep": "Updating? Leave “Erase device” unchecked to keep your Wi-Fi, FRITZ!Box login and sensor bindings.",
@@ -383,18 +383,18 @@
           "steps.kicker": "Step by step", "steps.title": "How to install",
           "steps.s1.t": "Connect the board", "steps.s1.d": "Put the ESP32-CAM on the MB adapter and connect it to your computer.",
           "steps.s2.t": "Click Install", "steps.s2.d": "Choose the adapter's serial port, usually named CH340 or USB-SERIAL, and confirm. Installing takes a few minutes.",
-          "steps.s3.t": "Restart", "steps.s3.d": "The board restarts when the installer is done. If nothing happens, press the RST button.",
+          "steps.s3.t": "Restart", "steps.s3.d": "The board restarts when the flasher is done. If nothing happens, press the RST button.",
           "steps.s4.t": "Scan a Wi-Fi QR code", "steps.s4.d": "Show a Wi-Fi QR code to the camera. Your FRITZ!Box and most phones can show one for your network. The flash LED blinks while the board connects.",
           "steps.s5.t": "Open FritzGate", "steps.s5.d": "Go to http://fritzgate and click Connect to FRITZ!Box to enter your login. Then hold a thermostat's gauge to pick its reference sensor.",
           "help.kicker": "Troubleshooting", "help.title": "If something goes wrong",
-          "help.q1": "The installer can't connect to the board",
+          "help.q1": "The flasher can't connect to the board",
           "help.a1": "Put the board into download mode: hold the IO0 button, press and release RST, then release IO0. Click Install again.",
           "help.q2": "No serial port shows up",
           "help.a2": "Try another USB cable, because some cables only carry power. If the port still doesn't appear, install the CH340 driver for the adapter.",
           "help.q3": "I use a USB-to-serial adapter instead of the MB adapter",
-          "help.a3": "Connect GND to GND, 5V to 5V, the adapter's TX to U0R and its RX to U0T. Connect IO0 to GND, then power the board and click Install. When the installer is done, remove the IO0 wire and press RST.",
+          "help.a3": "Connect GND to GND, 5V to 5V, the adapter's TX to U0R and its RX to U0T. Connect IO0 to GND, then power the board and click Install. When the flasher is done, remove the IO0 wire and press RST.",
           "help.q4": "Will updating delete my settings?",
-          "help.a4": "No, as long as “Erase device” stays unchecked. The installer only replaces the firmware and keeps your Wi-Fi, FRITZ!Box login and sensor bindings.",
+          "help.a4": "No, as long as “Erase device” stays unchecked. The flasher only replaces the firmware and keeps your Wi-Fi, FRITZ!Box login and sensor bindings.",
           "help.q5": "Can I use a different flashing tool?",
           "help.a5": "Yes. Each release on GitHub includes a complete image, fritzgate-<version>-full.bin. Write it to address 0x0 with esptool or Espressif's Flash Download Tool. The complete image also erases saved settings.",
           "help.releases": "All releases",
@@ -404,13 +404,13 @@
           "_meta.desc": "Install the FritzGate firmware on an Ai Thinker ESP32-CAM straight from your browser."
         },
         de: {
-          "hero.kicker": "Web-Installer",
+          "hero.kicker": "Web-Flasher",
           "hero.title": "FritzGate im Browser installieren",
           "hero.sub": "Spiele das aktuelle Release per USB auf einen Ai Thinker ESP32-CAM. Du brauchst weder PlatformIO noch die Arduino IDE oder andere Software.",
           "release.latest": "Aktuelles Release", "release.notes": "Versionshinweise",
           "install.button": "FritzGate installieren",
           "install.unsupported": "Dein Browser kann nicht auf USB-Geräte zugreifen. Öffne diese Seite in Chrome oder Edge auf einem Computer.",
-          "install.notAllowed": "Der Installer funktioniert nur auf einer per HTTPS geladenen Seite.",
+          "install.notAllowed": "Der Flasher funktioniert nur auf einer per HTTPS geladenen Seite.",
           "install.noRelease": "Es ist noch kein Firmware-Release veröffentlicht. Bis dahin baust und flashst du FritzGate wie in der Installationsanleitung beschrieben.",
           "install.guide": "Installationsanleitung",
           "install.keep": "Du aktualisierst? Lass „Erase device“ deaktiviert, dann bleiben WLAN, FRITZ!Box-Login und Sensor-Zuordnungen erhalten.",
@@ -425,14 +425,14 @@
           "steps.s4.t": "WLAN-QR-Code zeigen", "steps.s4.d": "Halte einen WLAN-QR-Code vor die Kamera. Deine FRITZ!Box und die meisten Smartphones können einen für dein Netzwerk anzeigen. Die Blitz-LED blinkt, während sich das Board verbindet.",
           "steps.s5.t": "FritzGate öffnen", "steps.s5.d": "Öffne http://fritzgate und klicke auf „Connect to FRITZ!Box“, um deinen Login einzugeben. Halte dann die Anzeige eines Thermostats gedrückt, um seinen Referenzsensor zu wählen.",
           "help.kicker": "Hilfe", "help.title": "Wenn etwas nicht klappt",
-          "help.q1": "Der Installer findet keine Verbindung zum Board",
+          "help.q1": "Der Flasher findet keine Verbindung zum Board",
           "help.a1": "Versetze das Board in den Download-Modus: Halte die IO0-Taste gedrückt, drück kurz RST und lass dann IO0 los. Klicke erneut auf Installieren.",
           "help.q2": "Es erscheint kein serieller Port",
           "help.a2": "Probier ein anderes USB-Kabel, denn manche Kabel liefern nur Strom. Fehlt der Port weiterhin, installiere den CH340-Treiber für den Adapter.",
           "help.q3": "Ich nutze einen USB-Seriell-Adapter statt des MB-Adapters",
           "help.a3": "Verbinde GND mit GND, 5V mit 5V, TX des Adapters mit U0R und RX mit U0T. Verbinde IO0 mit GND, schalte das Board ein und klicke auf Installieren. Ist die Installation fertig, entferne die IO0-Brücke und drück RST.",
           "help.q4": "Löscht ein Update meine Einstellungen?",
-          "help.a4": "Nein, solange „Erase device“ deaktiviert bleibt. Der Installer ersetzt nur die Firmware. WLAN, FRITZ!Box-Login und Sensor-Zuordnungen bleiben erhalten.",
+          "help.a4": "Nein, solange „Erase device“ deaktiviert bleibt. Der Flasher ersetzt nur die Firmware. WLAN, FRITZ!Box-Login und Sensor-Zuordnungen bleiben erhalten.",
           "help.q5": "Kann ich ein anderes Flash-Tool verwenden?",
           "help.a5": "Ja. Jedes Release auf GitHub enthält ein komplettes Image, fritzgate-<version>-full.bin. Schreib es mit esptool oder dem Flash Download Tool von Espressif an Adresse 0x0. Das komplette Image löscht dabei auch die gespeicherten Einstellungen.",
           "help.releases": "Alle Releases",

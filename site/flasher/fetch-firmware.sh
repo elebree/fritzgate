@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Downloads a FritzGate release's manifest.json, written by the release workflow, and the flash
-# parts it lists next to this script, so the web installer can flash the release. GitHub release
+# parts it lists next to this script, so the web flasher can flash the release. GitHub release
 # downloads send no CORS headers, so the browser can't load them from github.com: the site has to
 # serve them itself.
 #
@@ -42,4 +42,4 @@ fi
 for part in $parts; do
   curl -fsSL -o "$dir/$part" "$url/$part"
 done
-echo "FritzGate $tag is ready for the web installer in $dir"
+echo "FritzGate $tag is ready for the web flasher in $dir"

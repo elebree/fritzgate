@@ -2,7 +2,7 @@
 
 [![PlatformIO CI](https://github.com/elebree/fritzgate/actions/workflows/platformio.yml/badge.svg)](https://github.com/elebree/fritzgate/actions/workflows/platformio.yml) [![Frontend CI](https://github.com/elebree/fritzgate/actions/workflows/deploy.yml/badge.svg)](https://github.com/elebree/fritzgate/actions/workflows/deploy.yml)
 
-This document covers building FritzGate from source, flashing it without the web installer, and how the code is organized. To install and use FritzGate, see the [README](README.md).
+This document covers building FritzGate from source, flashing it without the web flasher, and how the code is organized. To install and use FritzGate, see the [README](README.md).
 
 ## How it works
 
@@ -17,13 +17,13 @@ This document covers building FritzGate from source, flashing it without the web
 
 FritzGate supports every device that the TheengsDecoder version pinned in [platformio.ini](platformio.ini) (currently 1.7.8) can decode and that reports a temperature. The [Theengs device list](https://decoder.theengs.io/devices/devices.html) follows the latest TheengsDecoder release, so it can include models that FritzGate does not support yet. FritzGate does not decrypt encrypted advertisements.
 
-## Flashing without the web installer
+## Flashing without the web flasher
 
 The ESP32-CAM has no USB port of its own. Connect it through an ESP32-CAM-MB adapter or a USB-to-serial adapter.
 
 ### Release image
 
-Each [GitHub release](https://github.com/elebree/fritzgate/releases) includes a complete image, `fritzgate-<version>-full.bin`. Write it to address `0x0` with [esptool](https://github.com/espressif/esptool), Espressif's Flash Download Tool or the [browser flasher](https://espressif.github.io/esptool-js/). The complete image also erases saved settings.
+Each [GitHub release](https://github.com/elebree/fritzgate/releases) includes a complete image, `fritzgate-<version>-full.bin`. Write it to address `0x0` with [esptool](https://github.com/espressif/esptool), Espressif's Flash Download Tool or [esptool-js](https://espressif.github.io/esptool-js/) in the browser. The complete image also erases saved settings.
 
 ```bash
 esptool.py --chip esp32 write_flash 0x0 fritzgate-<version>-full.bin
@@ -69,7 +69,7 @@ The PlatformIO build sets the `READ_WIFI_QR_CODE` flag, so the board reads the W
 
 - `src/` is the ESP32 firmware (C++, Arduino framework, built with PlatformIO). [src/src.ino](src/src.ino) is the entry point. It runs the control loop and a small HTTP server for the web interface and the `/api/` endpoints.
 - `frontend/` is the Svelte web interface. It is compiled into the firmware as `src/index_html.h`. See [frontend/README.md](frontend/README.md).
-- `site/` is the [website](https://fritzgate.elebree.com/) with the [web installer](https://fritzgate.elebree.com/flasher/).
+- `site/` is the [website](https://fritzgate.elebree.com/) with the [web flasher](https://fritzgate.elebree.com/flasher/).
 - `.github/workflows/` holds the CI builds, the release workflow and the website deployment.
 
 ## Changing the web interface
@@ -87,7 +87,7 @@ pnpm run build:firmware
 GitHub Actions publish the website on every push to `main`:
 
 - `/` is the landing page from `site/`.
-- `/flasher/` is the web installer, built on [ESP Web Tools](https://esphome.github.io/esp-web-tools/). [site/flasher/fetch-firmware.sh](site/flasher/fetch-firmware.sh) downloads the latest release during the deployment, because GitHub release downloads have no CORS headers.
+- `/flasher/` is the web flasher, built on [ESP Web Tools](https://esphome.github.io/esp-web-tools/). [site/flasher/fetch-firmware.sh](site/flasher/fetch-firmware.sh) downloads the latest release during the deployment, because GitHub release downloads have no CORS headers.
 - `/demo/` is the demo build of `frontend/`, which uses sample data instead of a board.
 
-Pushing a `v*` tag builds the firmware and creates a GitHub release with the flash images. The website is then published again, so the web installer offers the new release. Tags with a `-` suffix, such as `v1.3.0-beta`, become prereleases and don't change the web installer.
+Pushing a `v*` tag builds the firmware and creates a GitHub release with the flash images. The website is then published again, so the web flasher offers the new release. Tags with a `-` suffix, such as `v1.3.0-beta`, become prereleases and don't change the web flasher.
