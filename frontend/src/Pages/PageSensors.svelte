@@ -12,6 +12,7 @@
 
   export let data: StatusData | null = null;
   export let onConfigure: (thermostat: DeviceStatus) => void = () => {};
+  export let onShowSensor: (sensor: SensorStatus) => void = () => {};
   let sensors: SensorStatus[] | null = null;
   let thermostats: DeviceStatus[] = [];
   let timestamp: number = 0;
@@ -110,7 +111,7 @@
     <article>
       <header>
         <strong>Sensors</strong>
-        <small>not used as reference by any thermostat</small>
+        <small>not used as reference by any thermostat, hold a gauge for its history</small>
       </header>
       <div class="gauges">
         {#each unboundSensors as sensor (sensor.id)}
@@ -123,6 +124,8 @@
               titleRight={sensor.name}
               signalRight={sensor.rssi}
               chargeRight={sensor.battery}
+              onHold={() => onShowSensor(sensor)}
+              holdLabel="Show the history of {sensor.name}"
             />
           </div>
         {/each}

@@ -15,6 +15,8 @@
   export let showRightBadges = true;
   // Called after the gauge is pressed and held; the gauge isn't holdable without it
   export let onHold: (() => void) | undefined = undefined;
+  // What holding the gauge does, for the hidden button of keyboard and screen reader users
+  export let holdLabel: string | undefined = undefined;
 
   import Gauge from "svelte-gauge";
   import heatIcon from "../assets/heating.svg";
@@ -102,7 +104,7 @@
   style="width: 100%;aspect-ratio: 1/1;--label-font-size: {labelFontSize}px"
 >
   {#if onHold}
-    <button class="hold-button" on:click={onHold}>Configure {title}</button>
+    <button class="hold-button" on:click={onHold}>{holdLabel ?? `Configure ${title}`}</button>
   {/if}
   <Gauge
     class="indicator-gauge"

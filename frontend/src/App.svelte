@@ -4,13 +4,16 @@
   import PageSensors from "./Pages/PageSensors.svelte";
   import FritzBoxDialog from "./lib/FritzBoxDialog.svelte";
   import Icon from "./lib/Icon.svelte";
+  import SensorDialog from "./lib/SensorDialog.svelte";
   import ThermostatDialog from "./lib/ThermostatDialog.svelte";
   import WaitBox from "./lib/WaitBox.svelte";
-  import type { ApiService, DeviceStatus, StatusData } from "./interfaces";
+  import type { ApiService, DeviceStatus, SensorStatus, StatusData } from "./interfaces";
   import github from "./assets/github-mark.svg";
 
-  // Dialogs open on top of the dashboard: #setup for the FRITZ!Box, #thermostat-<id> for a thermostat
+  // Dialogs open on top of the dashboard: #setup for the FRITZ!Box, #thermostat-<id> for a thermostat, #sensor-<id>
+  // for a sensor that no thermostat uses
   const THERMOSTAT_HASH = "#thermostat-";
+  const SENSOR_HASH = "#sensor-";
 
   export let api: ApiService;
   let state: StatusData | undefined = undefined;
@@ -25,9 +28,12 @@
         (v) => v.id === decodeURIComponent(page.slice(THERMOSTAT_HASH.length))
       )
     : undefined;
+  $: shownSensor = page.startsWith(SENSOR_HASH)
+    ? state?.sensors.find((v) => v.id === decodeURIComponent(page.slice(SENSOR_HASH.length)))
+    : undefined;
 
   function isDialog(hash: string) {
-    return hash === "#setup" || hash.startsWith(THERMOSTAT_HASH);
+    return hash === "#setup" || hash.startsWith(THERMOSTAT_HASH) || hash.startsWith(SENSOR_HASH);
   }
 
   function routeChange() {
@@ -39,6 +45,10 @@
 
   function configure(thermostat: DeviceStatus) {
     location.hash = THERMOSTAT_HASH + encodeURIComponent(thermostat.id);
+  }
+
+  function showSensor(sensor: SensorStatus) {
+    location.hash = SENSOR_HASH + encodeURIComponent(sensor.id);
   }
 
   function closeDialog() {
@@ -106,7 +116,7 @@
       message="trying to connect to the FritzGate"
       details="this buddy gossips too much with sensors"
     />
-  {:else}<PageSensors data={state} onConfigure={configure} />
+  {:else}<PageSensors data={state} onConfigure={configure} onShowSensor={showSensor} />
   {/if}
   {#if state && page === "#setup"}
     <FritzBoxDialog {api} data={state} onClose={closeDialog} />
@@ -118,5 +128,7 @@
       {api}
       onClose={closeDialog}
     />
+  {:else if state && shownSensor}
+    <SensorDialog sensor={shownSensor} {api} onClose={closeDialog} />
   {/if}
 </main>

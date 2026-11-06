@@ -6,8 +6,10 @@
 #include "./src/bluetooth/SensorsScanner.h"
 #include "./src/bluetooth/GoveeSensorsScanner.h"
 #include "./src/bluetooth/TheengsSensorsScanner.h"
+#include "./src/history/history.h"
 #include "./src/logging.h"
 #include "./src/json.h"
+#include "./src/buffered_print.h"
 
 #include <EEPROM.h>
 #include <esp_http_server.h>
@@ -50,6 +52,13 @@
 
 // Seconds between NTP attempts while the clock was never synced: 1 minute. A failed attempt blocks loop() for a second.
 #define NTP_RETRY_INTERVAL 60
+
+// Seconds the clock is ahead of UTC: 1 hour, CET without daylight saving time. The timestamps in /api/status use this
+// clock, /api/history uses UTC.
+#define NTP_TIME_OFFSET 3600
+
+// Seconds between history samples of the sensors and thermostats: 1 minute
+#define HISTORY_SAMPLE_INTERVAL 60
 
 // Marks Config::sensors_bindings_offsets as initialized
 #define OFFSETS_SIGNATURE 0xA501
@@ -111,12 +120,18 @@ unsigned long watchdogLastFeedMillis = 0;
 // Tracks the last NTP clock sync attempt
 unsigned long ntpLastSyncMillis = 0;
 
+// Tracks the last history sample
+unsigned long historyLastSampleMillis = 0;
+
 // char buffer[5 * 4 * 2 * 60 * 24 / 5] = {}; // overflowed by 1136 bytes
 
 // Holds pointers to active sensors
 static int sensorsCount = 0;
 static Sensor *sensors[MAX_SENSORS_COUNT] = {};
 std::vector<Thermostat> thermostats;
+
+// Readings of the last 30 days, served by /api/history
+History history;
 
 // FritzBox connection states
 const char FRITZ_STATUS_CONFIGURED[] = "CONFIGURED";
@@ -129,7 +144,7 @@ const char *fritzStatus = FRITZ_STATUS_NOT_CONFIGURED;
 WiFiUDP ntpUDP;
 Session fritzSession(DEFAULT_FRITZBOX_HOST, 80, "", "");
 WiFiServer server(80);
-NTPClient ntpClient(ntpUDP, NTP_SERVER, 3600, 60000);
+NTPClient ntpClient(ntpUDP, NTP_SERVER, NTP_TIME_OFFSET, 60000);
 
 Sensor *GetSensorById(const char *id)
 {
@@ -617,6 +632,41 @@ void syncClock()
   }
 }
 
+/**
+ * Whether a reading of a time on the clock is at most Sensor::OFFLINE_TIMEOUT old. A sensor can report while the caller
+ * runs, so a reading a bit newer than now counts too.
+ */
+bool isRecentReading(unsigned long now, unsigned long timestamp)
+{
+  long age = (long)(now - timestamp);
+  return age > -Sensor::OFFLINE_TIMEOUT && age <= Sensor::OFFLINE_TIMEOUT;
+}
+
+/**
+ * Add a sample of each sensor and thermostat with a recent reading to the history. Waits for the first NTP sync, as the
+ * history slots go by the clock.
+ */
+void recordHistory()
+{
+  if (!ntpClient.isTimeSet())
+    return;
+  unsigned long now = ntpClient.getEpochTime();
+  unsigned long utc = now - NTP_TIME_OFFSET;
+
+  for (int i = 0; i < sensorsCount; i++)
+  {
+    Sensor *sensor = sensors[i];
+    if (isRecentReading(now, sensor->timestamp))
+      history.addSensor(sensor->id, utc, (int32_t)sensor->temperature, sensor->humidity);
+  }
+  for (auto &thermostat : thermostats)
+  {
+    if (thermostat.temperatureValid && isRecentReading(now, thermostat.timestamp))
+      history.addThermostat(
+          thermostat.id, utc, (int32_t)thermostat.temperature, thermostat.targetTemperature, thermostat.offset);
+  }
+}
+
 EEPROMClass storage("eeprom0");
 
 /**
@@ -761,6 +811,26 @@ bool startsWith(const char *str, const char *prefix)
 }
 
 /**
+ * Read an unsigned integer query parameter of an HTTP request line, such as hours in "GET /api/history?hours=24 HTTP/1.1".
+ * Returns defaultValue if the parameter is missing, and 0 if its value doesn't start with a digit.
+ */
+unsigned long queryParameter(const char *requestLine, const char *name, unsigned long defaultValue)
+{
+  const char *end = strchr(requestLine, ' ');
+  end = end ? strchr(end + 1, ' ') : NULL;
+  const char *parameter = strchr(requestLine, '?');
+  size_t nameLength = strlen(name);
+  while (parameter != NULL && (end == NULL || parameter < end))
+  {
+    parameter++;
+    if (strncmp(parameter, name, nameLength) == 0 && parameter[nameLength] == '=')
+      return isdigit((unsigned char)parameter[nameLength + 1]) ? strtoul(parameter + nameLength + 1, NULL, 10) : 0;
+    parameter = strchr(parameter, '&');
+  }
+  return defaultValue;
+}
+
+/**
  * Answer an API request with 400 Bad Request and an error message.
  */
 void writeJsonError(Stream &client, const char *error)
@@ -785,6 +855,12 @@ void loop()
   {
     fritzSmartHomeControlLastRefreshMillis = millis();
     syncFritzBox();
+  }
+
+  if (millis() - historyLastSampleMillis >= HISTORY_SAMPLE_INTERVAL * 1000UL)
+  {
+    historyLastSampleMillis = millis();
+    recordHistory();
   }
 
   // Without FRITZ!Box credentials there is no sync to feed the watchdog, and the board only shows the sensors. A timer
@@ -841,6 +917,25 @@ void loop()
               client.print(i + 1 < thermostats.size() ? "," : "");
             }
             client.println("\r\n]}");
+            client.flush();
+            break;
+          }
+          else if (startsWith(linebuf, "GET /api/history"))
+          {
+            unsigned long hours = queryParameter(linebuf, "hours", 24);
+            unsigned long step = queryParameter(linebuf, "step", HISTORY_INTERVAL);
+            if (hours < 1 || hours > HISTORY_HOURS || step < HISTORY_INTERVAL || step % HISTORY_INTERVAL != 0 ||
+                (hours * 60 * 60 + step - 1) / step > HISTORY_MAX_POINTS)
+            {
+              writeJsonError(client, "hours must be 1 to 720, step a multiple of 300 with at most 1000 points");
+            }
+            else
+            {
+              writeJsonHeaders(client);
+              BufferedPrint<1024> out(client);
+              history.print(out, ntpClient.getEpochTime() - NTP_TIME_OFFSET, hours, step);
+              out.flush();
+            }
             client.flush();
             break;
           }

@@ -1,4 +1,5 @@
-import { Status, type ApiService, type SensorStatus, type StatusData } from "../interfaces";
+import { Status, type ApiService, type HistoryData, type SensorStatus, type StatusData } from "../interfaces";
+import { demoHistory } from "./demoHistory";
 
 export class DemoApiService implements ApiService {
     readonly demo = true;
@@ -46,6 +47,11 @@ export class DemoApiService implements ApiService {
                 : [],
         };
         return res;
+    }
+
+    async fetchHistory(hours: number, step: number): Promise<HistoryData> {
+        const status = await this.ensureStatusLoaded();
+        return demoHistory(status, Date.now() / 1000, hours, step);
     }
 
     async setBinding(device: string, reference: string): Promise<Response> {

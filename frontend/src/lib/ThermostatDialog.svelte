@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { ApiService, DeviceStatus, SensorStatus } from "../interfaces";
   import Dialog from "./Dialog.svelte";
+  import HistoryPanel from "./HistoryPanel.svelte";
   import Indicators from "./Indicators.svelte";
 
   export let thermostat: DeviceStatus;
@@ -107,6 +108,8 @@
       </small>
     </p>
   {/if}
+  <!-- Shows the sensor chosen above, so a sensor's readings can be compared before saving -->
+  <HistoryPanel {api} {thermostat} sensor={reference} />
   {#if failed}
     <p class="note">
       <mark>couldn't save the reference sensor, please try again</mark>
