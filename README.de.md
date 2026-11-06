@@ -5,7 +5,7 @@
 
 **FritzGate** sorgt dafür, dass deine Heizkörperthermostate **FRITZ!DECT 301** und **FRITZ!DECT 302** nach der Temperatur im Raum heizen und nicht nach der Temperatur am Heizkörper. Es läuft auf einem kleinen, günstigen Board, dem **Ai Thinker ESP32-CAM**, und nutzt Bluetooth-Thermometer, die du in deinen Räumen aufstellst. Unterstützt werden über 70 Modelle, unter anderem von Xiaomi, Govee, SwitchBot, Qingping, Ruuvi, Inkbird und ThermoPro.
 
-**[Website](https://fritzgate.elebree.com/)** · **[Live-Demo](https://fritzgate.elebree.com/demo/)** · **[Web-Installer](https://fritzgate.elebree.com/flasher/)**
+**[Website](https://fritzgate.elebree.com/)** · **[Live-Demo](https://fritzgate.elebree.com/demo/)** · **[Web-Flasher](https://fritzgate.elebree.com/flasher/)**
 
 <a href="https://fritzgate.elebree.com/demo/">
   <picture>
@@ -44,7 +44,7 @@ Alle 30 Sekunden vergleicht FritzGate die Temperatur, die jedes Thermostat misst
 ### 1. FritzGate auf das Board installieren
 
 1. Stecke das ESP32-CAM-Board auf den MB-Adapter und verbinde ihn mit dem USB-Kabel mit deinem Computer.
-2. Öffne den [Web-Installer](https://fritzgate.elebree.com/flasher/) in Chrome oder Edge und klicke auf **FritzGate installieren**. Wähle den Port des Adapters, meist CH340 oder USB-SERIAL genannt, und bestätige. Die Installation dauert ein paar Minuten.
+2. Öffne den [Web-Flasher](https://fritzgate.elebree.com/flasher/) in Chrome oder Edge und klicke auf **FritzGate installieren**. Wähle den Port des Adapters, meist CH340 oder USB-SERIAL genannt, und bestätige. Die Installation dauert ein paar Minuten.
 3. Nach der Installation startet das Board neu. Passiert nichts, drück die RST-Taste auf dem Board.
 
 Du möchtest FritzGate selbst bauen oder ein anderes Tool verwenden? Siehe [DEVELOPMENT.md](DEVELOPMENT.md) (auf Englisch).
@@ -79,12 +79,12 @@ Stelle jedes Thermometer dort auf, wo du dich im Raum aufhältst, nicht in der N
 
 ## Aktualisieren
 
-Öffne den [Web-Installer](https://fritzgate.elebree.com/flasher/) erneut und installiere die neueste Version. Lass „Erase device“ deaktiviert, dann bleiben WLAN, FRITZ!Box-Login und Sensor-Auswahl erhalten.
+Öffne den [Web-Flasher](https://fritzgate.elebree.com/flasher/) erneut und installiere die neueste Version. Lass „Erase device“ deaktiviert, dann bleiben WLAN, FRITZ!Box-Login und Sensor-Auswahl erhalten.
 
 ## Fehlerbehebung
 
-- **Der Installer findet keine Verbindung zum Board:** Halte die IO0-Taste gedrückt, drück kurz RST und lass dann IO0 los. Klicke erneut auf **FritzGate installieren**.
-- **Im Installer erscheint kein Port:** Probier ein anderes USB-Kabel. Fehlt der Port weiterhin, installiere den CH340-Treiber für den Adapter.
+- **Der Flasher findet keine Verbindung zum Board:** Halte die IO0-Taste gedrückt, drück kurz RST und lass dann IO0 los. Klicke erneut auf **FritzGate installieren**.
+- **Im Flasher erscheint kein Port:** Probier ein anderes USB-Kabel. Fehlt der Port weiterhin, installiere den CH340-Treiber für den Adapter.
 - **http://fritzgate öffnet sich nicht:** Prüfe, ob dein Computer oder Smartphone im selben Netzwerk wie das Board ist. Probier [http://fritzgate.fritz.box](http://fritzgate.fritz.box) oder öffne die IP-Adresse des Boards, die die FRITZ!Box unter **Heimnetz > Netzwerk** anzeigt.
 - **Ein Sensor wird nicht angezeigt:** Prüfe, ob er in der [Liste der kompatiblen Sensoren](#kompatible-sensoren) steht, stelle das Board näher auf und prüfe die Batterie des Sensors.
 
