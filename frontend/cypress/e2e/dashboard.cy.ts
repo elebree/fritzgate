@@ -90,6 +90,25 @@ describe("dashboard", () => {
     });
   });
 
+  it("shows a sensor that appears later, also in browsers without notifications", () => {
+    // iOS Safari has no Notification outside home-screen apps, Android Chrome throws on `new Notification`
+    let sensors = statusData().sensors;
+    cy.stubApi(() => statusData({ sensors }));
+    cy.visit("/", {
+      onBeforeLoad: (win) => {
+        delete (win as Partial<Window & typeof globalThis>).Notification;
+      },
+    });
+
+    cy.contains("article", "Thermostats");
+    cy.then(() => (sensors = [...sensors, unusedSensor]));
+    cy.contains("article", "Sensors").contains("textPath", "Sensor EEEE");
+
+    // The dashboard keeps updating afterwards
+    cy.then(() => (sensors = sensors.map((v) => (v.id === unusedSensor.id ? { ...v, humidity: 77 } : v))));
+    cy.contains("article", "Sensors").find(".slider-content").should("contain", "77%");
+  });
+
   it("hides the sensors section when every sensor is in use", () => {
     cy.stubApi(statusData());
     cy.visit("/");

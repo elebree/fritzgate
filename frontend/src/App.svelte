@@ -53,31 +53,12 @@
     }
   }
 
-  function requestNotifications() {
-    Notification.requestPermission(function (result) {
-      if (result === "granted") {
-        // new Notification("Notifications permission granted")
-      }
-    });
-  }
-
   async function fetchData() {
     try {
       const newData: StatusData | undefined = await api.fetchStatus();
       if (!newData) {
         busy = true;
         return;
-      }
-
-      if (state) {
-        var newSensors = newData.sensors.filter(
-          (v) => !state?.sensors.find((ns) => ns.name == v.name)
-        );
-        if (newSensors.length > 0) {
-          new Notification(
-            "Found a new sensor(s): " + newSensors.map((v) => v.name).join(", ")
-          );
-        }
       }
 
       state = {
@@ -110,7 +91,6 @@
       </li>
     </ul>
     <ul>
-      <!-- <li><button on:click={requestNotifications}>Notifications</button></li> -->
       <li>
         <a
           class="secondary"

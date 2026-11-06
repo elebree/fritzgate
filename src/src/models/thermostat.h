@@ -44,6 +44,10 @@ struct YearlyPeriod
 class Thermostat : public Sensor
 {
 public:
+    // unit UID (the AIN) used by the Smart Home REST API of FRITZ!OS 8.20+, reported by sh_control since FRITZ!OS 8.x
+    std::string uid;
+    // false if FRITZ!Box reports no current temperature, then the offset can't be computed
+    bool temperatureValid = false;
     int windowOpenTimer;
     int windowOpenTrigger;
     std::string temperatureSensor;
@@ -73,6 +77,9 @@ public:
     std::string referenceSensor;
 
     int enabledHolidays() const;
+    // Whether the thermostat uses an external temperature sensor set in FRITZ!Box. temperatureSensor is empty for
+    // devices that are no thermostats.
+    bool usesExternalSensor() const;
 
 protected:
     virtual void SerializeBody(Stream &client, long timestamp, int indentLevel);

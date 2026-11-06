@@ -5,14 +5,15 @@
 #include <StreamString.h>
 #include <string>
 
-std::string FritzThermostat::urlEncode(const char *msg)
+// spaceAsPlus: form encoding, a space becomes "+"; in a URL path it must be "%20"
+std::string FritzThermostat::urlEncode(const char *msg, bool spaceAsPlus)
 {
     const char *hex = "0123456789ABCDEF";
     std::string encodedMsg = "";
 
     while (*msg != '\0')
     {
-        if (*msg == ' ')
+        if (*msg == ' ' && spaceAsPlus)
         {
             encodedMsg += '+';
         }
@@ -99,9 +100,11 @@ void FritzThermostat::printPostBody(Stream &stream, Thermostat &info, const char
     stream.printf("%sTrigger=%d", windowOpen, info.windowOpenTrigger + 3);
     stream.printf("%sTimer=%d", windowOpen, info.windowOpenTimer);
 
-    stream.printf("&tempsensor=%s", info.temperatureSensor.c_str());
+    // FritzGate sets the offset of the thermostat's own sensor, so it switches from an external sensor set in
+    // FRITZ!Box back to the own one: the reference sensor bound in FritzGate replaces it
+    stream.printf("&tempsensor=own");
     stream.printf("&Roomtemp=%g", (info.temperature + info.offset) / 10.0);
-    stream.printf("&ExtTempsensorID=%s", info.externalTemperatureSensorId.c_str());
+    stream.printf("&ExtTempsensorID=tochoose");
     stream.printf("&Offset=%g", info.offset / 10.0);
 
     // the mail address field is disabled, so not posted, while the push service is off
@@ -163,6 +166,172 @@ String FritzThermostat::getPostBody(Thermostat &info, const char *sid)
     return print;
 }
 
+std::string FritzThermostat::getUnitConfigurationPath(const Thermostat &info)
+{
+    // the unit UID is the AIN ("12345 0123456"), which sh_control reports as uid and actorIdentificationNumber
+    const std::string &uid = info.uid.empty() ? info.serial : info.uid;
+    return "/api/v0/smarthome/configuration/units/" + urlEncode(uid.c_str(), false);
+}
+
+String FritzThermostat::getOffsetBody(int32_t offset)
+{
+    // only the offset: the PUT is a partial update, so the schedule, holidays and other settings stay untouched
+    StreamString print;
+    print.printf("{\"interfaces\":{\"thermostatInterface\":{\"temperatureOffset\":"
+                 "{\"sensorMode\":\"internal\",\"internalOffset\":%g}}}}",
+                 offset / 10.0);
+    return print;
+}
+
+// The thermostat with the given id, added if it is not known yet
+static Thermostat &findOrAddThermostat(std::vector<Thermostat> &thermostats, const char *id)
+{
+    for (Thermostat &thermostat : thermostats)
+    {
+        if (thermostat.id == id)
+            return thermostat;
+    }
+    thermostats.push_back(Thermostat());
+    thermostats.back().id = id;
+    return thermostats.back();
+}
+
+// Temperature in 0.1 °C of a REST API temperature {"mode": ..., "celsius": ...}. "off" is 0, which FritzGate takes as
+// heating off; "on" (valve fully open) is 28.5 °C, which the edit form shows as "MAX"; "unknown" is 0 as well.
+static uint32_t parseRestTemperature(JsonObject temperature)
+{
+    const char *mode = temperature["mode"] | "";
+    if (strcmp(mode, "temperature") == 0)
+        return (uint32_t)lround((temperature["celsius"] | 0.0) * 10);
+    if (strcmp(mode, "on") == 0)
+        return 285;
+    return 0;
+}
+
+bool FritzThermostat::parseRestUnits(const String &json, std::vector<Thermostat> &thermostats, std::vector<std::string> &uids)
+{
+    StaticJsonDocument<256> filter;
+    filter[0]["UID"] = true;
+    filter[0]["isGroupUnit"] = true;
+    // an object filter keeps thermostatInterface as an object, even an empty one, so thermostats can be told apart
+    filter[0]["interfaces"]["thermostatInterface"]["state"] = true;
+
+    DynamicJsonDocument units(json.length() / 2 + 1024);
+    auto error = deserializeJson(units, json, DeserializationOption::Filter(filter));
+    if (error)
+    {
+        LOG_ERRORF("FRITZ units JSON failed: %s", error.c_str());
+        return false;
+    }
+    if (!units.is<JsonArray>())
+    {
+        LOG_ERROR("FRITZ units list missing");
+        return false;
+    }
+
+    for (JsonObject unit : units.as<JsonArray>())
+    {
+        const char *uid = unit["UID"] | "";
+        if (uid[0] == 0 || unit["isGroupUnit"].as<bool>() || unit["interfaces"]["thermostatInterface"].isNull())
+            continue;
+        Thermostat &info = findOrAddThermostat(thermostats, uid);
+        info.uid = uid;
+        uids.push_back(uid);
+    }
+    return true;
+}
+
+bool FritzThermostat::parseRestDevices(const String &json, std::vector<Thermostat> &thermostats)
+{
+    StaticJsonDocument<256> filter;
+    filter[0]["unitUids"] = true;
+    filter[0]["ain"] = true;
+    filter[0]["productName"] = true;
+    filter[0]["batteryValue"] = true;
+
+    DynamicJsonDocument devices(json.length() / 2 + 1024);
+    auto error = deserializeJson(devices, json, DeserializationOption::Filter(filter));
+    if (error)
+    {
+        LOG_ERRORF("FRITZ devices JSON failed: %s", error.c_str());
+        return false;
+    }
+
+    for (JsonObject device : devices.as<JsonArray>())
+    {
+        for (JsonVariant unitUid : device["unitUids"].as<JsonArray>())
+        {
+            const char *uid = unitUid | "";
+            for (Thermostat &thermostat : thermostats)
+            {
+                if (thermostat.uid != uid)
+                    continue;
+                thermostat.model = device["productName"] | "";
+                thermostat.serial = device["ain"] | "";
+                thermostat.battery = device["batteryValue"] | 0;
+            }
+        }
+    }
+    return true;
+}
+
+bool FritzThermostat::parseRestUnitConfiguration(const String &json, Thermostat &info)
+{
+    StaticJsonDocument<512> filter;
+    filter["name"] = true;
+    JsonObject temperatureFilter = filter["interfaces"].createNestedObject("temperatureInterface");
+    temperatureFilter["state"] = true;
+    temperatureFilter["celsius"] = true;
+    JsonObject thermostatFilter = filter["interfaces"].createNestedObject("thermostatInterface");
+    thermostatFilter["setPointTemperature"] = true;
+    thermostatFilter["comfortTemperature"] = true;
+    thermostatFilter["reducedTemperature"] = true;
+    thermostatFilter["temperatureOffset"]["sensorMode"] = true;
+    thermostatFilter["temperatureOffset"]["internalOffset"] = true;
+    thermostatFilter["temperatureOffset"]["externalSensorUid"] = true;
+
+    // the filter drops the schedule and the temperature statistics, which make most of the 3 KB
+    DynamicJsonDocument unit(2048);
+    auto error = deserializeJson(unit, json, DeserializationOption::Filter(filter));
+    if (error)
+    {
+        LOG_ERRORF("FRITZ unit JSON failed: %s", error.c_str());
+        return false;
+    }
+
+    JsonObject thermostat = unit["interfaces"]["thermostatInterface"].as<JsonObject>();
+    JsonObject offset = thermostat["temperatureOffset"].as<JsonObject>();
+    if (offset.isNull())
+    {
+        LOG_ERRORF("FRITZ temperature offset missing: %s", info.id.c_str());
+        return false;
+    }
+
+    const char *name = unit["name"];
+    if (name)
+        info.name = name;
+    info.targetTemperature = parseRestTemperature(thermostat["setPointTemperature"].as<JsonObject>());
+    info.targetTemperatureHigh = parseRestTemperature(thermostat["comfortTemperature"].as<JsonObject>());
+    info.targetTemperatureLow = parseRestTemperature(thermostat["reducedTemperature"].as<JsonObject>());
+
+    // FritzGate sets the offset of the thermostat's own sensor, so the PUT switches from an external sensor set in
+    // FRITZ!Box back to the own one (sensorMode "internal")
+    bool external = strcmp(offset["sensorMode"] | "", "external") == 0;
+    info.temperatureSensor = external ? "external" : "own";
+    info.externalTemperatureSensorId = external ? (offset["externalSensorUid"] | "") : "tochoose";
+    info.offset = lround((offset["internalOffset"] | 0.0) * 10);
+
+    // celsius is the temperature FRITZ!Box shows, with the offset, like currentInCelsius of sh_control. Read it with
+    // the offset, so that both are from the same moment. While an external sensor is used, it may be the reading of
+    // that sensor: then the first offset is off, and the next sync corrects it after the PUT switched to the own sensor.
+    JsonObject temperature = unit["interfaces"]["temperatureInterface"].as<JsonObject>();
+    JsonVariant celsius = temperature["celsius"];
+    info.temperatureValid = strcmp(temperature["state"] | "", "valid") == 0 && !celsius.isNull();
+    if (info.temperatureValid)
+        info.temperature = lround(celsius.as<double>() * 10) - info.offset;
+    return true;
+}
+
 bool FritzThermostat::parseDevices(HTTPClient &http, std::vector<Thermostat> &thermostats)
 {
     const char *_LOWER_TEMPERATURE = "LOWER_TEMPERATURE";
@@ -184,6 +353,15 @@ bool FritzThermostat::parseDevices(HTTPClient &http, std::vector<Thermostat> &th
     DynamicJsonDocument device(15000);
     for (int i = 0; stream.find(i == 0 ? "[" : ",", 1); i++)
     {
+        if (i == 0)
+        {
+            // FRITZ!Box without devices: "devices": []. peek() doesn't wait for the next character, so wait for it.
+            for (unsigned long start = millis(); stream.available() == 0 && millis() - start < 1000;)
+                delay(1);
+            if (stream.peek() == ']')
+                break;
+        }
+
         // Thermostat info;
         std::map<long, int> weekly;
         // Deserialize the JSON document
@@ -226,6 +404,9 @@ bool FritzThermostat::parseDevices(HTTPClient &http, std::vector<Thermostat> &th
         }
 
         info->id = std::to_string(device["id"].as<int>());
+        bool isThermostat = false;
+        // the device's own temperature sensor unit, reported also while FRITZ!Box uses an external sensor
+        JsonObject ownTemperature;
         for (JsonArray::iterator unit = units.begin(); unit != units.end(); unit += 1)
         {
             JsonArray skills = (*unit)[_skills];
@@ -235,12 +416,18 @@ bool FritzThermostat::parseDevices(HTTPClient &http, std::vector<Thermostat> &th
                 {
                     info->battery = (*skill)["chargeLevelInPercent"].as<int>();
                 }
+                else if (strcmp((*skill)["type"], "SmartHomeTemperatureSensor") == 0)
+                {
+                    ownTemperature = skill->as<JsonObject>();
+                }
                 else if (strcmp((*skill)["type"], "SmartHomeThermostat") == 0)
                 {
+                    isThermostat = true;
                     info->model = device["model"].as<const char *>();
                     info->name = device["displayName"].as<const char *>();
                     const char *serial = device["actorIdentificationNumber"].as<const char *>();
                     info->serial = serial ? serial : "";
+                    info->uid = device["uid"] | "";
                     info->windowOpenTimer = (*skill)[_temperatureDropDetection]["doNotHeatOffsetInMinutes"].as<int>();
                     info->windowOpenTrigger = (*skill)[_temperatureDropDetection]["sensitivity"].as<int>();
 
@@ -274,13 +461,6 @@ bool FritzThermostat::parseDevices(HTTPClient &http, std::vector<Thermostat> &th
                         {
                             info->targetTemperatureHigh = (*preset)[_temperature].as<double>() * 10;
                         }
-                    }
-
-                    JsonArray sensorSkills = (*skill)[_usedTempSensor][_skills];
-                    for (JsonArray::iterator sensorSkill = sensorSkills.begin(); sensorSkill != sensorSkills.end(); sensorSkill += 1)
-                    {
-                        info->offset = (*sensorSkill)["offset"].as<double>() * 10;
-                        info->temperature = (*sensorSkill)["currentInCelsius"].as<double>() * 10 - info->offset;
                     }
 
                     // rebuild the timetable from scratch, otherwise switch points removed in FRITZ!Box survive in the
@@ -333,6 +513,26 @@ bool FritzThermostat::parseDevices(HTTPClient &http, std::vector<Thermostat> &th
                             parseYearlyPeriod(*timeSchedule, (*timeSchedule)["actions"][0], info->summer);
                         }
                     }
+                }
+            }
+        }
+
+        if (isThermostat)
+        {
+            // Temperature and offset of the thermostat's own sensor, not of usedTempSensor (they are the same while
+            // the thermostat uses its own sensor): FritzGate sets the offset of the own sensor and switches back to
+            // it from an external sensor set in FRITZ!Box.
+            // FRITZ!OS 8.26 can leave out currentInCelsius (seen for one thermostat in a capture); the offset can't
+            // be computed then, so the temperature is marked invalid.
+            info->temperatureValid = false;
+            if (!ownTemperature.isNull())
+            {
+                info->offset = ownTemperature["offset"].as<double>() * 10;
+                JsonVariant current = ownTemperature["currentInCelsius"];
+                if (!current.isNull())
+                {
+                    info->temperature = current.as<double>() * 10 - info->offset;
+                    info->temperatureValid = true;
                 }
             }
         }

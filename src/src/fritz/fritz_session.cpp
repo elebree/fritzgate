@@ -1,6 +1,5 @@
 #include "crypto.h"
 #include "fritz_session.h"
-#include "fritz_thermostat.h"
 #include "../logging.h"
 #include <HTTPClient.h>
 #include <vector>
@@ -32,7 +31,10 @@ Session::Session(const char *host, int port, const char *username, const char *p
       mPassword(password),
       mHost(host),
       mPort(port),
-      mTimeTillLogout(1100)
+      mTimeTillLogout(1100),
+      mDataLuaApi(*this),
+      mReadOnlyApi(*this),
+      mRestApi(*this)
 {
 }
 
@@ -41,7 +43,10 @@ Session::Session()
       mPassword(""),
       mHost("fritz.box"),
       mPort(80),
-      mTimeTillLogout(1100)
+      mTimeTillLogout(1100),
+      mDataLuaApi(*this),
+      mReadOnlyApi(*this),
+      mRestApi(*this)
 {
 }
 
@@ -60,6 +65,22 @@ void Session::reset_session()
 {
   mSID = "";
   mSessionExpiration = 0;
+  mApi = nullptr;
+}
+
+ThermostatApi *Session::api() const
+{
+  return mApi;
+}
+
+DataLuaApi &Session::dataLuaApi()
+{
+  return mDataLuaApi;
+}
+
+const std::string &Session::version() const
+{
+  return mVersion;
 }
 
 void Session::configure(const char *host, int port, const char *username, const char *password)
@@ -97,7 +118,132 @@ bool Session::ensure_connection()
     return false;
   }
 
+  if (!detect_api())
+  {
+    LOG_ERROR("FRITZ!Box API detection failed");
+    reset_session();
+    return false;
+  }
+
   mSessionExpiration = std::time(nullptr) + mTimeTillLogout;
+  return true;
+}
+
+// Keeps the first non-whitespace character of a response body and drops the rest, so a large body needs no memory
+class FirstCharStream : public Stream
+{
+public:
+  char first = 0;
+
+  size_t write(uint8_t c) override
+  {
+    if (first == 0 && !isspace(c))
+      first = c;
+    return 1;
+  }
+
+  size_t write(const uint8_t *buffer, size_t size) override
+  {
+    for (size_t i = 0; i < size && first == 0; i++)
+      write(buffer[i]);
+    return size;
+  }
+
+  int available() override { return 0; }
+  int read() override { return -1; }
+  int peek() override { return -1; }
+};
+
+// Start a request to the REST API. It asks for HTTP/1.0, so that FRITZ!Box answers without chunked encoding:
+// HTTPClient of the ESP32 core 2.0.x reads a chunked answer up to its last chunk, but not the empty line after it. Its
+// writeToStream() (behind getString()) then closes the connection, and WiFiClient::flush() fails on that line, which
+// is buffered, not in the socket ("flush(): fail on fd ..., errno: 11"). HTTPClient closes the connection after each
+// request anyway (~HTTPClient()), so HTTP/1.0 costs nothing.
+void Session::begin_rest(HTTPClient &http, const char *path)
+{
+  http.useHTTP10(true);
+  http.begin(client, mHost.c_str(), mPort, path, false);
+  http.addHeader("Authorization", String("AVM-SID ") + mSID.c_str());
+}
+
+// Read the FRITZ!OS version, e.g. "8.26", from jason_boxinfo.xml, which needs no login
+void Session::query_version()
+{
+  mVersion = "";
+  HTTPClient http;
+  http.begin(client, mHost.c_str(), mPort, "/jason_boxinfo.xml", false);
+  int httpCode = http.GET();
+  if (httpCode == HTTP_CODE_OK)
+  {
+    // <j:Version>271.08.26</j:Version>: hardware id, major and minor version
+    String payload = http.getString();
+    std::string version = getTagValue(payload.c_str(), "<j:Version>", "</j:Version>");
+    int major, minor;
+    if (sscanf(version.c_str(), "%*d.%d.%d", &major, &minor) == 2)
+    {
+      char buffer[16];
+      snprintf(buffer, sizeof(buffer), "%d.%02d", major, minor);
+      mVersion = buffer;
+    }
+  }
+  else
+  {
+    LOG_WARNINGF("HTTP GET /jason_boxinfo.xml: %d", httpCode);
+  }
+  http.end();
+}
+
+// 1 if the Smart Home REST API (FRITZ!OS 8.20+) answers, 0 if not, -1 if the request failed
+int Session::probe_rest_api()
+{
+  const char *path = "/api/v0/smarthome/overview/units";
+  HTTPClient http;
+  begin_rest(http, path);
+  int httpCode = http.GET();
+  int result = 0;
+  if (httpCode == HTTP_CODE_OK)
+  {
+    // check the body too, an unknown path may be answered with an HTML page
+    FirstCharStream body;
+    http.writeToStream(&body);
+    result = body.first == '[' ? 1 : 0;
+  }
+  else if (httpCode <= 0)
+  {
+    LOG_ERRORF("HTTP GET failed: %s", http.errorToString(httpCode).c_str());
+    result = -1;
+  }
+  LOG_HTTPF("HTTP GET %s: %d", path, httpCode);
+  http.end();
+  return result;
+}
+
+// Choose how to read the thermostats and write the offset. Runs after each login: a FRITZ!OS update reboots the
+// FRITZ!Box, which forces a new login, so FritzGate switches the API without a restart.
+bool Session::detect_api()
+{
+  query_version();
+  int major = 0, minor = 0;
+  bool versionKnown = sscanf(mVersion.c_str(), "%d.%d", &major, &minor) == 2;
+  if (versionKnown && major < 8)
+  {
+    // FRITZ!OS 7.x has no REST API, no need to probe it
+    mApi = &mDataLuaApi;
+  }
+  else
+  {
+    int rest = probe_rest_api();
+    if (rest < 0)
+      return false;
+    if (rest > 0)
+      mApi = &mRestApi;
+    else if (versionKnown)
+      mApi = &mReadOnlyApi; // FRITZ!OS 8.0x-8.1x, the REST API came with 8.20
+    else
+      mApi = &mDataLuaApi; // version unknown and no REST API: as before, treat it as 7.x
+  }
+
+  LOG_SUCCESSF("FRITZ!OS %s, API: %s", mVersion.empty() ? "unknown" : mVersion.c_str(), mApi->name());
   return true;
 }
 
@@ -132,66 +278,80 @@ bool Session::query_challenge()
   return true;
 }
 
-// Perform POST request with provided HTTPClient and path
-int Session::post_request(HTTPClient &http, const char *path, const char *post_template)
+// Keep the session after a successful request. End it after 401/403 or a failed connection, so that the next sync logs
+// in again: FRITZ!OS 8.x can end a session early.
+void Session::track_request(int httpCode)
 {
-  char post_data[70];
-  snprintf(post_data, sizeof(post_data), post_template, mSID.c_str());
-
-  http.begin(client, mHost.c_str(), mPort, path, false); // Initiate HTTP connection
-  http.addHeader("Content-Type", "application/x-www-form-urlencoded");
-  int httpCode = http.POST((uint8_t *)post_data, strlen(post_data));
-  LOG_HTTP("HTTP POST body ready");
-  String payload;
-  if (httpCode > 0)
-  {
-    // HTTP header has been sent and Server response header has been handled
-    if (httpCode == HTTP_CODE_OK)
-    {
-      // update session after successful request
-      mSessionExpiration = std::time(nullptr) + mTimeTillLogout;
-    }
-    LOG_HTTPF("HTTP POST %s: %d", path, httpCode);
-  }
-  else
-  {
+  if (httpCode >= 200 && httpCode < 300)
+    mSessionExpiration = std::time(nullptr) + mTimeTillLogout;
+  else if (httpCode <= 0 || httpCode == HTTP_CODE_UNAUTHORIZED || httpCode == HTTP_CODE_FORBIDDEN)
     reset_session();
+}
+
+int Session::post_form(HTTPClient &http, const char *path, const String &body)
+{
+  http.begin(client, mHost.c_str(), mPort, path, false);
+  http.addHeader("Content-Type", "application/x-www-form-urlencoded");
+  int httpCode = http.POST(body);
+  if (httpCode == HTTP_CODE_OK)
+    LOG_HTTPF("HTTP POST %s: %d", path, httpCode);
+  else if (httpCode > 0)
+    LOG_ERRORF("HTTP POST %s: %d", path, httpCode);
+  else
     LOG_ERRORF("HTTP POST failed: %s", http.errorToString(httpCode).c_str());
-  }
+  track_request(httpCode);
   return httpCode;
 }
 
-// Query data with POST request
-String Session::query_data(const char *path, const char *post_template)
+int Session::rest_get(const char *path, String &payload)
 {
   HTTPClient http;
-  String payload;
-  auto httpCode = post_request(http, path, post_template);
-  // Check if HTTP request was successful
+  begin_rest(http, path);
+  int httpCode = http.GET();
   if (httpCode == HTTP_CODE_OK)
   {
+    LOG_HTTPF("HTTP GET %s: %d", path, httpCode);
+    // unlike getStream(), getString() also reads a chunked body
     payload = http.getString();
   }
-  http.end();
-  return payload;
-}
-
-// Query devices and populate vector with thermostats
-bool Session::query_devices(std::vector<Thermostat> &thermostats)
-{
-  LOG_INFO("FRITZ devices query");
-  HTTPClient http;
-  // auto httpCode = post_request(http, "/myfritz/api/data.lua", "sid=%s&c=smarthome&a=getDevicesAndGroups");
-  auto httpCode = post_request(http, "/data.lua", "xhr=1&sid=%s&lang=en&page=sh_control&xhrId=all");
-  // Check if HTTP request was successful
-  if (httpCode == HTTP_CODE_OK)
+  else if (httpCode > 0)
   {
-    auto stat = FritzThermostat::parseDevices(http, thermostats);
-    http.end();
-    return stat;
+    // the REST API explains errors: {"errors":[{"code":...,"field":...,"message":...}]}
+    String body = http.getString();
+    LOG_ERRORF("HTTP GET %s: %d %s", path, httpCode, body.substring(0, 300).c_str());
+  }
+  else
+  {
+    LOG_ERRORF("HTTP GET failed: %s", http.errorToString(httpCode).c_str());
   }
   http.end();
-  return false;
+  track_request(httpCode);
+  return httpCode;
+}
+
+int Session::rest_put(const char *path, const String &body)
+{
+  HTTPClient http;
+  begin_rest(http, path);
+  http.addHeader("Content-Type", "application/json");
+  int httpCode = http.PUT(body);
+  if (httpCode >= 200 && httpCode < 300)
+  {
+    LOG_HTTPF("HTTP PUT %s: %d", path, httpCode);
+    http.getString(); // read the answer, so that end() has nothing left to discard (see begin_rest())
+  }
+  else if (httpCode > 0)
+  {
+    String payload = http.getString();
+    LOG_ERRORF("HTTP PUT %s: %d %s", path, httpCode, payload.substring(0, 300).c_str());
+  }
+  else
+  {
+    LOG_ERRORF("HTTP PUT failed: %s", http.errorToString(httpCode).c_str());
+  }
+  http.end();
+  track_request(httpCode);
+  return httpCode;
 }
 
 // Query Session ID for authentication
@@ -240,64 +400,5 @@ bool Session::query_session_id()
   }
 
   LOG_SUCCESS("FRITZ authenticated");
-  return true;
-}
-
-// Read the holiday temperature, which is not part of the device JSON, from the thermostat edit form
-bool Session::query_holiday_temperature(Thermostat &thermostat)
-{
-  HTTPClient http;
-  http.setReuse(false); // the form is not read to the end, close the connection instead of reusing it
-  http.begin(client, mHost.c_str(), mPort, "/data.lua", false);
-  http.addHeader("Content-Type", "application/x-www-form-urlencoded");
-  String body = String("xhr=1&sid=") + mSID.c_str() + "&device=" + thermostat.id.c_str() + "&page=home_auto_hkr_edit";
-  int httpCode = http.POST(body);
-  bool found = false;
-  if (httpCode == HTTP_CODE_OK)
-  {
-    LOG_HTTPF("HTTP POST /data.lua home_auto_hkr_edit: %d", httpCode);
-    found = FritzThermostat::parseHolidayTemperature(http.getStream(), thermostat);
-  }
-  else if (httpCode > 0)
-  {
-    LOG_ERRORF("HTTP POST /data.lua home_auto_hkr_edit: %d", httpCode);
-  }
-  else
-  {
-    reset_session();
-    LOG_ERRORF("HTTP POST failed: %s", http.errorToString(httpCode).c_str());
-  }
-  http.end();
-  return found;
-}
-
-// Post thermostat state
-bool Session::post_thermostat_state(Thermostat &thermostat)
-{
-  HTTPClient http;
-  http.begin(client, mHost.c_str(), mPort, "/data.lua", false); // Initiate HTTP connection
-  http.addHeader("Content-Type", "application/x-www-form-urlencoded");
-  String postBody = FritzThermostat::getPostBody(thermostat, mSID.c_str());
-  int httpCode = http.POST(postBody.c_str());
-  String payload;
-
-  if (httpCode > 0)
-  {
-    // HTTP header has been sent and Server response header has been handled
-    LOG_HTTPF("HTTP POST /data.lua: %d", httpCode);
-
-    // file found at server
-    if (httpCode == HTTP_CODE_OK)
-    {
-      payload = http.getString();
-      // Serial.println(payload.c_str());
-    }
-  }
-  else
-  {
-    LOG_ERRORF("HTTP POST failed: %s", http.errorToString(httpCode).c_str());
-    return false;
-  }
-  http.end();
   return true;
 }

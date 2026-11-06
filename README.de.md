@@ -29,7 +29,7 @@ Ein Heizkörperthermostat misst die Temperatur direkt neben dem heißen Heizkör
 
 ## Funktionsweise
 
-Alle 30 Sekunden vergleicht FritzGate die Temperatur, die jedes Thermostat misst, mit der Temperatur des Raumsensors, den du dafür gewählt hast. Dann passt es den Offset des Thermostats an, damit die FRITZ!Box heizt, bis der Raum warm genug ist. FritzGate lässt den Offset unverändert, solange die Heizung aus ist oder der Sensor sich 5 Minuten lang nicht gemeldet hat.
+Alle 30 Sekunden vergleicht FritzGate die Temperatur, die jedes Thermostat misst, mit der Temperatur des Raumsensors, den du dafür gewählt hast. Dann passt es den Offset des Thermostats an, damit die FRITZ!Box heizt, bis der Raum warm genug ist. FritzGate lässt den Offset unverändert, solange die Heizung aus ist oder der Sensor sich 5 Minuten lang nicht gemeldet hat. Meldet sich der Sensor eine Stunde lang nicht, stellt FritzGate den Offset wieder her, den das Thermostat vor deiner Sensorwahl hatte, bis sich der Sensor wieder meldet.
 
 ## Was du brauchst
 
@@ -73,7 +73,7 @@ Um den Login später zu ändern, klicke auf das Zahnrad neben **Thermostats**.
 1. Halte die runde Anzeige eines Thermostats gedrückt, bis sich seine Einstellungen öffnen.
 2. Wähle unter **Reference sensor** das Thermometer in diesem Raum und klicke auf **Save**.
 
-Ab jetzt korrigiert FritzGate dieses Thermostat alle 30 Sekunden. Um die Korrektur zu beenden, wähle **Built-in thermostat sensor**.
+Ab jetzt korrigiert FritzGate dieses Thermostat alle 30 Sekunden. Um die Korrektur zu beenden, wähle **Built-in thermostat sensor**. FritzGate stellt dann den Offset wieder her, den das Thermostat vor deiner Sensorwahl hatte.
 
 Stelle jedes Thermometer dort auf, wo du dich im Raum aufhältst, nicht in der Nähe des Heizkörpers und nicht in direktem Sonnenlicht. Das Board muss nah genug stehen, um die Bluetooth-Signale der Sensoren zu empfangen. Die Webseite zeigt die Signalstärke jedes Sensors an.
 
