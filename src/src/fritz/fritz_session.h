@@ -1,5 +1,6 @@
 #pragma once
-#include "fritz_thermostat.h"
+#include "data_lua_api.h"
+#include "rest_api.h"
 #include <HTTPClient.h>
 #include <iostream>
 #include <sstream>
@@ -8,15 +9,7 @@
 #include <WString.h>
 #include <ctime>
 
-// How FritzGate writes the thermostat offset, detected after each login
-enum FritzApi
-{
-  FRITZ_API_UNKNOWN,   // not logged in yet
-  FRITZ_API_DATA_LUA,  // FRITZ!OS 7.x: the thermostat edit form (data.lua, page=home_auto_hkr_edit)
-  FRITZ_API_REST,      // FRITZ!OS 8.20+: Smart Home REST API (/api/v0/smarthome/...)
-  FRITZ_API_READ_ONLY, // FRITZ!OS 8.x without the REST API: its edit form differs from 7.x, so don't post it
-};
-
+// Login to the FRITZ!Box, and the API that reads the thermostats and writes their offset, chosen after each login
 class Session
 {
 private:
@@ -32,7 +25,11 @@ private:
   std::time_t mSessionExpiration;
   long mTimeTillLogout;
 
-  FritzApi mApi = FRITZ_API_UNKNOWN;
+  DataLuaApi mDataLuaApi;
+  ReadOnlyDataLuaApi mReadOnlyApi;
+  RestApi mRestApi;
+  // the API chosen after the login, NULL while not logged in
+  ThermostatApi *mApi = nullptr;
   // FRITZ!OS version, e.g. "8.26"; empty if unknown
   std::string mVersion;
 
@@ -41,7 +38,8 @@ private:
   bool detect_api();
   void query_version();
   int probe_rest_api();
-  void add_rest_auth_header(HTTPClient &http);
+  void begin_rest(HTTPClient &http, const char *path);
+  void track_request(int httpCode);
 
 public:
   Session(const char *host, int port, const char *username, const char *password);
@@ -52,12 +50,17 @@ public:
   bool ensure_connection();
   void reset_session();
   std::string sid();
-  int post_request(HTTPClient &http, const char *path, const char *post_template);
-  String query_data(const char *path, const char *post_template);
-  bool query_devices(std::vector<Thermostat> &thermostats);
-  bool query_holiday_temperature(Thermostat &thermostat);
-  bool post_thermostat_state(Thermostat &thermostat);
-  bool put_thermostat_offset(Thermostat &thermostat, int32_t offset);
-  FritzApi api() const;
+  // the API chosen after the login, NULL while not logged in
+  ThermostatApi *api() const;
+  // reads with sh_control, which reports the numeric device ids of the thermostats, and on 8.x their UIDs too
+  DataLuaApi &dataLuaApi();
   const std::string &version() const;
+
+  // HTTP requests of the APIs. They keep the session after a success, and end it after 401/403 or a failed connection.
+  // POST a form; the caller reads the answer from http and ends it
+  int post_form(HTTPClient &http, const char *path, const String &body);
+  // GET from the REST API; the body is put in payload if the answer is 200
+  int rest_get(const char *path, String &payload);
+  // PUT a JSON body to the REST API
+  int rest_put(const char *path, const String &body);
 };
