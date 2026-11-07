@@ -39,23 +39,36 @@
   $: labelFont = wrapper
     ? `${labelFontSize}px ${getComputedStyle(wrapper).fontFamily}`
     : "";
-  $: labels = [titleLeft, title, titleRight].map((label) =>
-    fitLabel(label, labelWidth, labelFont)
-  );
+  // The left label (the thermostat's model and serial) is never shortened: when it is longer than its third of the
+  // circle, it reaches equally into both neighbouring thirds, so the neighbours give up that room
+  $: leftOverflow = Math.max(0, textWidth(titleLeft, labelFont) - labelWidth);
+  $: labels =
+    labelWidth > 0
+      ? [
+          titleLeft,
+          fitLabel(title, labelWidth - leftOverflow, `bold ${labelFont}`),
+          fitLabel(titleRight, labelWidth - leftOverflow, labelFont),
+        ]
+      : [titleLeft, title, titleRight];
+
+  // Width of a label in a CSS font, 0 before the gauge is measured
+  function textWidth(label: string, font: string) {
+    if (!canvas || !font) return 0;
+    canvas.font = font;
+    return canvas.measureText(label).width;
+  }
 
   // Shorten a label with an ellipsis so it doesn't run into the neighbouring one
   function fitLabel(label: string, width: number, font: string) {
-    if (!canvas || !font || width <= 0) return label;
-    canvas.font = font;
-    if (canvas.measureText(label).width <= width) return label;
+    if (!canvas || !font || textWidth(label, font) <= width) return label;
     let text = label;
-    while (text && canvas.measureText(text.trimEnd() + "…").width > width) {
+    while (text && textWidth(text.trimEnd() + "…", font) > width) {
       text = text.slice(0, -1);
     }
     return text.trimEnd() + "…";
   }
 
-  const HOLD_MS = 600;
+  const HOLD_MS = 300;
   // svelte-gauge always tweens for one second, so the easing completes the fill within HOLD_MS
   const holdEasing = (t: number) => Math.min(1, (t * 1000) / HOLD_MS);
   let holding = false;
@@ -309,5 +322,10 @@
 
   :global(.indicator-gauge .gauge-labels) {
     font-size: var(--label-font-size);
+  }
+
+  // The title, at the top: the labels are left, title and right. fitLabel() measures it in bold too.
+  :global(.indicator-gauge .gauge-labels textPath:nth-child(2)) {
+    font-weight: bold;
   }
 </style>

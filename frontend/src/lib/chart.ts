@@ -48,6 +48,12 @@ const TIME_INTERVALS = [
 const HOUR_MS = 60 * 60 * 1000;
 
 /**
+ * Hours and minutes on a 24-hour clock in every locale, also in English ones. hourCycle "h23" rather than hour12: false,
+ * which some browsers show as "24:00" at midnight.
+ */
+const TIME_FORMAT: Intl.DateTimeFormatOptions = { hour: "2-digit", minute: "2-digit", hourCycle: "h23" };
+
+/**
  * Ticks for a time axis from from to to (milliseconds), at most maxTicks: on whole hours, local midnights or Mondays,
  * labeled with the time, the weekday or the date
  */
@@ -76,7 +82,7 @@ export function timeTicks(from: number, to: number, maxTicks: number) {
         time: date.getTime(),
         label:
           "hours" in interval
-            ? date.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })
+            ? date.toLocaleTimeString(undefined, TIME_FORMAT)
             : interval.days < 7
               ? date.toLocaleDateString(undefined, { weekday: "short" })
               : date.toLocaleDateString(undefined, { day: "numeric", month: "short" }),
@@ -95,9 +101,7 @@ export function timeTicks(from: number, to: number, maxTicks: number) {
 export function formatTime(time: number, withDate: boolean) {
   return new Date(time).toLocaleString(
     undefined,
-    withDate
-      ? { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }
-      : { weekday: "short", hour: "2-digit", minute: "2-digit" }
+    withDate ? { day: "numeric", month: "short", ...TIME_FORMAT } : { weekday: "short", ...TIME_FORMAT }
   );
 }
 
