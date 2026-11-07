@@ -65,10 +65,9 @@ public:
         {
             if (BLEdata.containsKey("id") && BLEdata.containsKey("tempc"))
             {
-                LOG_BEGIN(LOG_COLOR_DEVICE);
-                Serial.print("Theengs device: ");
-                serializeJson(BLEdata, Serial);
-                LOG_ENDLN();
+                String json;
+                serializeJson(BLEdata, json);
+                LOG_DEVICEF("Theengs device: %s", json.c_str());
 
                 Sensor sensorData;
                 auto brand = BLEdata.containsKey("brand") ? BLEdata["brand"].as<std::string>() : "";

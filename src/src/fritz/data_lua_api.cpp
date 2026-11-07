@@ -43,7 +43,8 @@ bool DataLuaApi::setOffset(Thermostat &thermostat, int32_t offset)
   Thermostat changed = thermostat;
   changed.offset = offset;
   String body = FritzThermostat::getPostBody(changed, mSession.sid().c_str());
-  LOG_HTTP(body.c_str());
+  // log the form without the session ID
+  LOG_HTTP(FritzThermostat::getPostBody(changed, "[SID]").c_str());
 
   HTTPClient http;
   int httpCode = mSession.post_form(http, "/data.lua", body);
