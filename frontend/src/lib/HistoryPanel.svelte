@@ -17,6 +17,9 @@
   ];
   // FritzGate adds a sample every minute
   const REFRESH_MS = 60 * 1000;
+  // FritzGate answers one request at a time, and none while it syncs with the FRITZ!Box: a failed request is tried again
+  // after each of these delays before the panel reports it
+  const RETRY_MS = [1000, 2000, 4000];
 
   // Colors follow the device: the sensor's readings in one, the thermostat's in another
   const SENSOR_COLOR = "var(--history-sensor)";
@@ -44,27 +47,37 @@
   // Only the answer to the latest request counts, and none after the dialog closed
   let request = 0;
   let timer: ReturnType<typeof setTimeout> | undefined;
+  // Retries made since the last answer, or since another range was chosen
+  let retries = 0;
 
   async function load() {
     clearTimeout(timer);
     const current = ++request;
     const hours = range.hours;
     loading = true;
+    let retryMs: number | undefined = undefined;
     try {
       const result = await api.fetchHistory(hours, range.step);
       if (current === request) {
         data = result;
         dataHours = hours;
         failed = false;
+        retries = 0;
       }
     } catch {
       if (current === request) {
-        failed = true;
+        if (retries < RETRY_MS.length) {
+          retryMs = RETRY_MS[retries++];
+        } else {
+          failed = true;
+          retries = 0;
+        }
       }
     } finally {
       if (current === request) {
-        loading = false;
-        timer = setTimeout(load, REFRESH_MS);
+        // still loading while a retry is due
+        loading = retryMs !== undefined;
+        timer = setTimeout(load, retryMs ?? REFRESH_MS);
       }
     }
   }
@@ -73,6 +86,7 @@
     if (selected !== range) {
       range = selected;
       hoverIndex = undefined;
+      retries = 0;
       load();
     }
   }

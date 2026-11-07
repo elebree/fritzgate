@@ -150,12 +150,37 @@ describe("history", () => {
       });
   });
 
-  it("keeps the dialog usable when the history fails", () => {
-    cy.intercept({ method: "GET", pathname: "/api/history" }, { statusCode: 500, headers: corsHeaders });
+  it("tries a failed request again, without reporting it when a retry works", () => {
+    let failures = 2;
+    cy.intercept({ method: "GET", pathname: "/api/history" }, (req) => {
+      if (failures-- > 0) {
+        req.reply({ statusCode: 500, headers: corsHeaders });
+      } else {
+        req.reply({ headers: corsHeaders, body: historyData() });
+      }
+    }).as("flakyHistory");
 
     cy.visit("/#thermostat-16");
 
-    cy.get("dialog").should("contain", "couldn't load the history");
+    // retries after 1 and 2 seconds
+    cy.wait(["@flakyHistory", "@flakyHistory", "@flakyHistory"]);
+    cy.get("dialog .readout").should("contain", `${celsius(18.5)}℃ Thermostat`);
+    cy.get("dialog").should("not.contain", "couldn't load the history");
+    cy.get("@flakyHistory.all").should("have.length", 3);
+  });
+
+  it("keeps the dialog usable when the history fails", () => {
+    cy.intercept({ method: "GET", pathname: "/api/history" }, { statusCode: 500, headers: corsHeaders }).as(
+      "failedHistory"
+    );
+
+    cy.visit("/#thermostat-16");
+
+    // the first request and 3 retries, after 1, 2 and 4 seconds
+    cy.get("dialog .readout .time").should("have.attr", "aria-busy", "true");
+    cy.get("dialog", { timeout: 10000 }).should("contain", "couldn't load the history");
+    cy.get("@failedHistory.all").should("have.length", 4);
+    cy.get("dialog .readout .time").should("have.attr", "aria-busy", "false");
     cy.get("dialog select").select("GVH5075_AAAA");
     cy.contains("dialog button", "Save").click();
     cy.wait("@binding");
