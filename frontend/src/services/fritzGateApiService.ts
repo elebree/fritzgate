@@ -1,4 +1,4 @@
-import type { ApiService, StatusData } from "../interfaces";
+import type { ApiService, HistoryData, StatusData } from "../interfaces";
 
 export class FritzGateApiService implements ApiService {
     private getEndpoint(endpoint: string) {
@@ -23,6 +23,16 @@ export class FritzGateApiService implements ApiService {
             clearTimeout(timeoutId);
         }
         return result;
+    }
+
+    async fetchHistory(hours: number, step: number): Promise<HistoryData> {
+        const response = await fetch(this.getEndpoint(`history?hours=${hours}&step=${step}`), {
+            signal: AbortSignal.timeout(10000),
+        });
+        if (!response.ok) {
+            throw new Error(`history: HTTP ${response.status}`);
+        }
+        return await response.json();
     }
 
     async setBinding(device: string, reference: string): Promise<Response> {

@@ -85,8 +85,8 @@ describe("dashboard", () => {
     cy.contains("article", "Sensors").within(() => {
       cy.get(".gauges > *").should("have.length", 1);
       cy.contains("textPath", "Sensor EEEE");
-      // Sensor gauges have no thermostat to configure
-      cy.get(".hold-button").should("not.exist");
+      // Sensor gauges have no thermostat to configure, they show the sensor's history
+      cy.get(".hold-button").should("have.length", 1).and("have.text", "Show the history of Sensor EEEE");
     });
   });
 
