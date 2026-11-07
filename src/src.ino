@@ -32,8 +32,8 @@
 #include "./src/qrcode/qr_code_reader.h"
 #endif
 
-// Watchdog timer: the device restarts automatically if FRITZ!Box credentials are set, but no thermostat data arrives
-// from the FRITZ!Box for 5 minutes. Without credentials, loop() feeds it.
+// Watchdog timer: the device restarts automatically if FRITZ!Box credentials are set, but the FRITZ!Box doesn't answer
+// the list of thermostats for 5 minutes. Without credentials, loop() feeds it.
 #define WATCHDOG_TIMEOUT 60 * 5
 
 // FritzBox settings refresh interval: 30 seconds
@@ -59,6 +59,9 @@
 
 // Seconds between history samples of the sensors and thermostats: 1 minute
 #define HISTORY_SAMPLE_INTERVAL 60
+
+// sh_control reads that may be tried to migrate the thermostat bindings to UIDs after a start
+#define BINDINGS_MIGRATION_ATTEMPTS 3
 
 // Marks Config::sensors_bindings_offsets as initialized
 #define OFFSETS_SIGNATURE 0xA501
@@ -344,17 +347,8 @@ class SensorsAdvertisedDeviceCallbacks : public SensorScannerCallback
 };
 
 /**
- * Whether the thermostat uses an external temperature sensor set in FRITZ!Box. temperatureSensor is empty for devices
- * that are no thermostats.
- */
-bool usesExternalSensor(const Thermostat &thermostat)
-{
-  return !thermostat.temperatureSensor.empty() && thermostat.temperatureSensor != "own";
-}
-
-/**
  * Write the offset of a thermostat, unless its state or the FRITZ!Box doesn't allow it now.
- * Returns true if the offset was sent to the FRITZ!Box.
+ * Returns true if the FRITZ!Box took the offset.
  */
 bool writeThermostatOffset(Thermostat &thermostat, int32_t offset)
 {
@@ -372,58 +366,21 @@ bool writeThermostatOffset(Thermostat &thermostat, int32_t offset)
     return false;
   }
 
-  FritzApi api = fritzSession.api();
-  if (api == FRITZ_API_REST)
+  ThermostatApi *api = fritzSession.api();
+  if (api == NULL)
   {
-    LOG_INFOF("Updating offset for \"%s\": %g -> %g",
-              thermostat.name.c_str(),
-              thermostat.offset / 10.0,
-              offset / 10.0);
-    if (usesExternalSensor(thermostat))
-      LOG_INFOF("\"%s\": the reference sensor replaces the external sensor set in FRITZ!Box", thermostat.name.c_str());
-    if (fritzSession.put_thermostat_offset(thermostat, offset))
-    {
-      thermostat.offset = offset;
-      thermostat.offsetTimestamp = ntpClient.getEpochTime();
-    }
-    return true;
+    // the session ended during this sync
+    LOG_WARNINGF("Skip offset for \"%s\" %g -> %g: not logged in",
+                 thermostat.name.c_str(),
+                 thermostat.offset / 10.0,
+                 offset / 10.0);
+    return false;
   }
-  if (api == FRITZ_API_DATA_LUA)
-  {
-    // posting enabled holidays without their temperature disables them, so rather keep the offset
-    if (thermostat.enabledHolidays() > 0 && !fritzSession.query_holiday_temperature(thermostat))
-    {
-      LOG_WARNINGF("Skip offset for \"%s\" %g -> %g: holiday temperature unknown",
-                   thermostat.name.c_str(),
-                   thermostat.offset / 10.0,
-                   offset / 10.0);
-      return false;
-    }
-    LOG_INFOF("Updating offset for \"%s\": %g -> %g",
-              thermostat.name.c_str(),
-              thermostat.offset / 10.0,
-              offset / 10.0);
-    if (usesExternalSensor(thermostat))
-      LOG_INFOF("\"%s\": the reference sensor replaces the external sensor set in FRITZ!Box", thermostat.name.c_str());
-    thermostat.offset = offset;
-    thermostat.offsetTimestamp = ntpClient.getEpochTime();
-
-    LOG_BEGIN(LOG_COLOR_HTTP);
-    FritzThermostat::printPostBody(Serial, thermostat, fritzSession.sid().c_str());
-    LOG_ENDLN();
-
-    fritzSession.post_thermostat_state(thermostat);
-    return true;
-  }
-
-  // FRITZ_API_READ_ONLY (FRITZ!OS 8.0x-8.1x): no REST API, and posting the 7.x edit form could reset other settings;
-  // FRITZ_API_UNKNOWN: the session ended during this sync
-  LOG_WARNINGF("Skip offset for \"%s\" %g -> %g: %s",
-               thermostat.name.c_str(),
-               thermostat.offset / 10.0,
-               offset / 10.0,
-               api == FRITZ_API_READ_ONLY ? "FRITZ!OS without Smart Home REST API" : "not logged in");
-  return false;
+  if (!api->setOffset(thermostat, offset))
+    return false;
+  thermostat.offset = offset;
+  thermostat.offsetTimestamp = ntpClient.getEpochTime();
+  return true;
 }
 
 /**
@@ -434,7 +391,7 @@ bool correctThermostat(Thermostat &thermostat, int binding, unsigned long timest
 {
   const char *sensorId = config.sensors_bindings[binding][1];
   int32_t originalOffset = config.sensors_bindings_offsets[binding];
-  bool externalSensor = usesExternalSensor(thermostat);
+  bool externalSensor = thermostat.usesExternalSensor();
 
   if (sensorId[0] == 0)
   {
@@ -483,6 +440,81 @@ bool correctThermostat(Thermostat &thermostat, int binding, unsigned long timest
 }
 
 /**
+ * Whether a thermostat binding has the numeric device id of sh_control, which the REST API doesn't report.
+ */
+bool hasNumericThermostatBindings()
+{
+  int count = countThermostatBindings();
+  for (int i = 0; i < count; i++)
+  {
+    const char *thermostatId = config.sensors_bindings[i][0];
+    if (thermostatId[strspn(thermostatId, "0123456789")] == 0)
+      return true;
+  }
+  return false;
+}
+
+/**
+ * Rename the bindings saved with the numeric device ids of sh_control to the unit UIDs, which the REST API uses as
+ * thermostat ids. sh_control, still served by FRITZ!OS 8.2x, reports both. Runs once per start; a failed read is
+ * retried with the next syncs, up to BINDINGS_MIGRATION_ATTEMPTS reads. A failed read can end the session, so that the
+ * sync reads no thermostats and doesn't feed the watchdog: retrying forever would restart the board every 5 minutes.
+ */
+void migrateThermostatBindings()
+{
+  static int attempts = 0;
+  if (attempts >= BINDINGS_MIGRATION_ATTEMPTS || !hasNumericThermostatBindings())
+    return;
+
+  attempts++;
+  std::vector<Thermostat> legacyThermostats;
+  if (!fritzSession.dataLuaApi().queryThermostats(legacyThermostats))
+  {
+    LOG_WARNINGF("Thermostat bindings not migrated to UIDs, %s",
+                 attempts < BINDINGS_MIGRATION_ATTEMPTS ? "retrying with the next sync" : "bind the sensors again");
+    return;
+  }
+  attempts = BINDINGS_MIGRATION_ATTEMPTS;
+
+  bool changed = false;
+  int count = countThermostatBindings();
+  for (int i = 0; i < count; i++)
+  {
+    char *thermostatId = config.sensors_bindings[i][0];
+    if (thermostatId[strspn(thermostatId, "0123456789")] != 0)
+      continue;
+    auto thermostat = std::find_if(
+        legacyThermostats.begin(), legacyThermostats.end(),
+        [thermostatId](const Thermostat &x)
+        { return x.id == thermostatId && !x.uid.empty(); });
+    if (thermostat == legacyThermostats.end() || findThermostatBinding(thermostat->uid.c_str()) >= 0 ||
+        !fitsField(config.sensors_bindings[i][0], thermostat->uid.c_str()))
+    {
+      LOG_WARNINGF("Binding of thermostat %s not migrated to its UID, bind its sensor again", thermostatId);
+      continue;
+    }
+    LOG_INFOF("\"%s\": binding migrated from id %s to UID %s",
+              thermostat->name.c_str(),
+              thermostatId,
+              thermostat->uid.c_str());
+    copyField(config.sensors_bindings[i][0], thermostat->uid.c_str());
+    changed = true;
+  }
+  if (changed)
+    saveConfig();
+}
+
+/**
+ * Read the thermostats with the API chosen after the login. True if the FRITZ!Box answered the list of thermostats,
+ * also an empty one.
+ */
+bool queryThermostats()
+{
+  ThermostatApi *api = fritzSession.api();
+  return api != NULL && api->queryThermostats(thermostats);
+}
+
+/**
  * Get state of FritzBox thermostats and update temperature offset if required.
  */
 bool syncFritzBox()
@@ -492,7 +524,23 @@ bool syncFritzBox()
   {
     fritzStatus = FRITZ_STATUS_CONNECTED;
     bool updates = false;
-    fritzSession.query_devices(thermostats);
+
+    // the thermostat id is the unit UID with the REST API, the numeric device id with sh_control: when the API changes
+    // (a FRITZ!OS update), forget the thermostats read with the other one
+    static bool uidIds = false;
+    ThermostatApi *api = fritzSession.api();
+    if (api != NULL && api->usesUids() != uidIds)
+    {
+      thermostats.clear();
+      uidIds = api->usesUids();
+    }
+    if (uidIds)
+      migrateThermostatBindings();
+
+    // Once per sync, when the FRITZ!Box answered the list of thermostats: also an empty one, and also when the offsets
+    // are skipped, which can hold for all thermostats
+    if (queryThermostats())
+      feedWatchdog();
     auto timestamp = ntpClient.getEpochTime();
     for (auto iter = thermostats.begin(); iter != thermostats.end(); iter++)
     {
@@ -501,13 +549,11 @@ bool syncFritzBox()
       int binding = findThermostatBinding(iter->id.c_str());
       if (binding >= 0 && correctThermostat(*iter, binding, timestamp))
         updates = true;
-      // also when an offset is skipped: the FRITZ!Box answered, and a skip can hold for all thermostats
-      feedWatchdog();
     }
 
     if (updates)
     {
-      bool result = fritzSession.query_devices(thermostats);
+      queryThermostats();
       auto timestamp = ntpClient.getEpochTime();
       for (auto iter = thermostats.begin(); iter != thermostats.end(); iter++)
       {
@@ -567,8 +613,9 @@ void setupWIFI()
     LOG_INLINE(LOG_COLOR_INFO, ".");
   }
   enableLed(false);
+  Serial.println(); // ends the line of dots, before the timestamp of the next one
   LOG_BEGIN(LOG_COLOR_SUCCESS);
-  Serial.printf("\r\nWiFi ready: http://");
+  Serial.print("WiFi ready: http://");
   Serial.print(WiFi.localIP());
   LOG_ENDLN();
 }

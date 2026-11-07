@@ -73,7 +73,7 @@ jobs:
             0xe000 "release/$name-boot_app0.bin" \
             0x10000 "release/$name-firmware.bin"
 
-          # Manifest for ESP Web Tools, with the same offsets; the web installer serves it next to the parts
+          # Manifest for ESP Web Tools, with the same offsets; the web flasher serves it next to the parts
           cat > "release/$name-manifest.json" <<EOF
           {
             "name": "FritzGate",
@@ -107,6 +107,16 @@ jobs:
           ### Flashing
 
           Connect the ESP32-CAM through an ESP32-CAM-MB adapter or a USB-to-serial adapter. The board has no USB port of its own.
+          If a flashing tool can't connect, hold IO0, press and release RST, then release IO0 to put the board into download mode.
+
+          #### Web flasher
+
+          Open the [FritzGate web flasher](https://fritzgate.elebree.com/flasher/) in Chrome or Edge and click **Install FritzGate**. It runs in the browser, so you don't need any other software.
+          To update, leave **Erase device** unchecked. This keeps the saved Wi-Fi, FRITZ!Box login and sensor bindings.
+
+          The web flasher offers only the latest regular release. To flash a prerelease or an older version, use one of the tools below.
+
+          #### Other tools
 
           **New installation:** write the complete image to address `0x0`. This erases saved settings.
 
@@ -120,8 +130,7 @@ jobs:
           esptool.py --chip esp32 write_flash 0x1000 @NAME@-bootloader.bin 0x8000 @NAME@-partitions.bin 0xe000 @NAME@-boot_app0.bin 0x10000 @NAME@-firmware.bin
           ```
 
-          To flash without installing anything, open Espressif's [browser flasher](https://espressif.github.io/esptool-js/) in Chrome or Edge and add the same files and addresses.
-          If the tool can't connect, hold IO0, press RST and release IO0 to put the board into download mode.
+          Espressif's [esptool-js](https://espressif.github.io/esptool-js/) also runs in Chrome or Edge: add the same files and addresses.
 
           | File | Address |
           |---|---|
@@ -142,9 +151,9 @@ jobs:
           gh release create "$GITHUB_REF_NAME" release/*.bin release/*.json $prerelease \
             --generate-notes --notes-file "$RUNNER_TEMP/notes.md"
 
-      # The web installer offers the latest regular release. Releases created with the workflow token
+      # The web flasher offers the latest regular release. Releases created with the workflow token
       # don't start other workflows, so start the Pages deploy explicitly (on main, which may deploy).
-      - name: Publish the firmware in the web installer
+      - name: Publish the firmware in the web flasher
         if: ${{ !contains(github.ref_name, '-') }}
         env:
           GH_TOKEN: ${{ github.token }}

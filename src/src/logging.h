@@ -10,7 +10,16 @@
 #define LOG_COLOR_HTTP "\x1b[34m"
 #define LOG_COLOR_DEVICE "\x1b[35m"
 
-#define LOG_BEGIN(color) Serial.print(color)
+// Each line starts with the milliseconds since the start, like the lines the ESP32 core logs ("[1230113][E]...")
+#define LOG_TIMESTAMP() Serial.printf("[%6lu] ", millis())
+
+// starts a line, which LOG_ENDLN() ends
+#define LOG_BEGIN(color)   \
+  do                       \
+  {                        \
+    Serial.print(color);   \
+    LOG_TIMESTAMP();       \
+  } while (0)
 #define LOG_END() Serial.print(LOG_COLOR_RESET)
 #define LOG_ENDLN() Serial.println(LOG_COLOR_RESET)
 
@@ -26,6 +35,7 @@
   do                                \
   {                                 \
     Serial.print(color);            \
+    LOG_TIMESTAMP();                \
     Serial.print(message);          \
     Serial.println(LOG_COLOR_RESET); \
   } while (0)
@@ -34,6 +44,7 @@
   do                                  \
   {                                   \
     Serial.print(color);              \
+    LOG_TIMESTAMP();                  \
     Serial.printf(format, __VA_ARGS__); \
     Serial.println(LOG_COLOR_RESET);  \
   } while (0)

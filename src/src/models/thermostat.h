@@ -77,6 +77,9 @@ public:
     std::string referenceSensor;
 
     int enabledHolidays() const;
+    // Whether the thermostat uses an external temperature sensor set in FRITZ!Box. temperatureSensor is empty for
+    // devices that are no thermostats.
+    bool usesExternalSensor() const;
 
 protected:
     virtual void SerializeBody(Stream &client, long timestamp, int indentLevel);

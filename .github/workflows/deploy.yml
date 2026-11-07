@@ -2,12 +2,12 @@ name: Deploy to GitHub Pages
 
 # Publishes github pages (custom domain set in the repository's Pages settings):
 #   /          landing page (site/)
-#   /flasher/  web installer with the latest release's firmware
+#   /flasher/  web flasher with the latest release's firmware
 #   /demo/     web UI demo (frontend/)
 on:
   push:
     branches: 'main'
-  # Started by the release workflow, so the web installer offers the new firmware
+  # Started by the release workflow, so the web flasher offers the new firmware
   workflow_dispatch:
 
 concurrency:
@@ -50,12 +50,12 @@ jobs:
           cp -r frontend/dist _site/demo
 
       # GitHub release downloads send no CORS headers, so the site serves the firmware itself
-      - name: Add the latest firmware to the web installer
+      - name: Add the latest firmware to the web flasher
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           if ! bash _site/flasher/fetch-firmware.sh; then
-            echo "::warning::No release with a manifest found, the web installer shows a notice instead"
+            echo "::warning::No release with a manifest found, the web flasher shows a notice instead"
             rm -f _site/flasher/manifest.json
           fi
           rm _site/flasher/fetch-firmware.sh _site/flasher/.gitignore

@@ -31,6 +31,11 @@ void Thermostat::SerializeBody(Stream &client, long currentTimestamp, int indent
     printJsonMember(client, nameof(referenceSensor), referenceSensor);
 }
 
+bool Thermostat::usesExternalSensor() const
+{
+    return !temperatureSensor.empty() && temperatureSensor != "own";
+}
+
 int Thermostat::enabledHolidays() const
 {
     int count = 0;
