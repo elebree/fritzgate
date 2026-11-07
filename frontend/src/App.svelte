@@ -2,6 +2,7 @@
   import "./app.scss";
 
   import PageSensors from "./Pages/PageSensors.svelte";
+  import DiagnosticsDialog from "./lib/DiagnosticsDialog.svelte";
   import FritzBoxDialog from "./lib/FritzBoxDialog.svelte";
   import Icon from "./lib/Icon.svelte";
   import SensorDialog from "./lib/SensorDialog.svelte";
@@ -9,9 +10,10 @@
   import WaitBox from "./lib/WaitBox.svelte";
   import type { ApiService, DeviceStatus, SensorStatus, StatusData } from "./interfaces";
   import github from "./assets/github-mark.svg";
+  import diagnosticsIcon from "./assets/diagnostics.svg";
 
   // Dialogs open on top of the dashboard: #setup for the FRITZ!Box, #thermostat-<id> for a thermostat, #sensor-<id>
-  // for a sensor that no thermostat uses
+  // for a sensor that no thermostat uses, #diagnostics for the state and log of the board
   const THERMOSTAT_HASH = "#thermostat-";
   const SENSOR_HASH = "#sensor-";
 
@@ -33,7 +35,12 @@
     : undefined;
 
   function isDialog(hash: string) {
-    return hash === "#setup" || hash.startsWith(THERMOSTAT_HASH) || hash.startsWith(SENSOR_HASH);
+    return (
+      hash === "#setup" ||
+      hash === "#diagnostics" ||
+      hash.startsWith(THERMOSTAT_HASH) ||
+      hash.startsWith(SENSOR_HASH)
+    );
   }
 
   function routeChange() {
@@ -104,6 +111,11 @@
     </ul>
     <ul>
       <li>
+        <a class="secondary" href="#diagnostics"
+          ><Icon src={diagnosticsIcon} label="Diagnostics" --icon-size="1.5em" /></a
+        >
+      </li>
+      <li>
         <a
           class="secondary"
           href="https://github.com/elebree/fritzgate"
@@ -122,6 +134,8 @@
   {/if}
   {#if state && page === "#setup"}
     <FritzBoxDialog {api} data={state} onClose={closeDialog} />
+  {:else if page === "#diagnostics"}
+    <DiagnosticsDialog {api} onClose={closeDialog} />
   {:else if state && configured}
     <ThermostatDialog
       thermostat={configured}

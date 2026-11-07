@@ -1,4 +1,4 @@
-import type { HistoryData, StatusData } from "../../src/interfaces";
+import type { Diagnostics, HistoryData, StatusData } from "../../src/interfaces";
 import fixture from "../fixtures/status.json";
 
 // From localhost the app calls http://fritzgate/api/..., so stubbed responses need CORS headers
@@ -54,4 +54,42 @@ export function historyData(hours = 24, step = 300, status: StatusData = statusD
       offset: values(thermostat.offset, thermostat.offset),
     })),
   };
+}
+
+/** The answer of GET /api/diagnostics of a board that restarted after its watchdog, plus any changes */
+export function diagnosticsData(changes: Partial<Diagnostics> = {}): Diagnostics {
+  return {
+    version: "v1.2.0",
+    // 1 d 2 h 3 min
+    uptime: 93780,
+    resetReason: "task_watchdog",
+    freeHeap: 90 * 1024,
+    minFreeHeap: 71 * 1024,
+    freePsram: 2600 * 1024,
+    rssi: -61,
+    fritzOsVersion: "8.26",
+    fritzApi: "Smart Home REST API",
+    log: {
+      first: 0,
+      next: 5,
+      lines: [
+        "[   412][S] FritzGate v1.2.0 starting",
+        "[ 31020][S] FRITZ authenticated",
+        '[ 61200][W] Skip offset for "Kitchen": FRITZ!Box reports no temperature',
+        "[ 91500][E] HTTP GET /api/v0/smarthome/overview/units: 500",
+        "[ 92000][H] HTTP request: GET /api/status HTTP/1.1",
+      ],
+    },
+    ...changes,
+  };
+}
+
+/**
+ * The answer of GET /api/diagnostics?after= of a board in the given state: like the board, the kept lines numbered
+ * after or later, and all of them for an after beyond its next line
+ */
+export function diagnosticsAfter(data: Diagnostics, after: number): Diagnostics {
+  const { first, next, lines } = data.log;
+  const shown = after > next ? first : Math.max(after, first);
+  return { ...data, log: { first: shown, next, lines: lines.slice(shown - first) } };
 }

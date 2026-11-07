@@ -22,6 +22,8 @@
 #include <sstream>
 #include <time.h>
 #include <esp_task_wdt.h>
+#include <esp_system.h>
+#include <esp_timer.h>
 
 // GPIO for ESP32-CAM flash (LED), typically GPIO 4
 #define FLASH_GPIO_NUM 4
@@ -609,21 +611,18 @@ void setupWIFI()
   WiFi.config(INADDR_NONE, INADDR_NONE, INADDR_NONE, INADDR_NONE);
   WiFi.begin(config.wifi_ssid, config.wifi_pass);
   WiFi.setSleep(WIFI_PS_MIN_MODEM);
+  LOG_INFOF("WiFi connecting: %s", config.wifi_ssid);
+  // a dot every half second, on the serial port only
   LOG_BEGIN(LOG_COLOR_INFO);
-  Serial.printf("WiFi connecting: %s", config.wifi_ssid);
-  LOG_END();
   for (int i = 0; WiFi.status() != WL_CONNECTED; i++)
   {
     enableLed(i % 2);
     delay(500);
-    LOG_INLINE(LOG_COLOR_INFO, ".");
+    Serial.print(".");
   }
-  enableLed(false);
-  Serial.println(); // ends the line of dots, before the timestamp of the next one
-  LOG_BEGIN(LOG_COLOR_SUCCESS);
-  Serial.print("WiFi ready: http://");
-  Serial.print(WiFi.localIP());
   LOG_ENDLN();
+  enableLed(false);
+  LOG_SUCCESSF("WiFi ready: http://%s", WiFi.localIP().toString().c_str());
 }
 
 /**
@@ -895,6 +894,66 @@ void writeJsonError(Stream &client, const char *error)
 }
 
 /**
+ * Why the board started last, as a key that the web UI explains. The ESP32 keeps the cause of a reset through it.
+ * The reset button and flashing count as power on; ESP_RST_TASK_WDT is the watchdog of setupWatchdog().
+ */
+const char *resetReason()
+{
+  switch (esp_reset_reason())
+  {
+  case ESP_RST_POWERON:
+    return "power_on";
+  case ESP_RST_EXT:
+    return "external";
+  case ESP_RST_SW:
+    return "software";
+  case ESP_RST_PANIC:
+    return "crash";
+  case ESP_RST_INT_WDT:
+    return "interrupt_watchdog";
+  case ESP_RST_TASK_WDT:
+    return "task_watchdog";
+  case ESP_RST_WDT:
+    return "watchdog";
+  case ESP_RST_DEEPSLEEP:
+    return "deep_sleep";
+  case ESP_RST_BROWNOUT:
+    return "brownout";
+  case ESP_RST_SDIO:
+    return "sdio";
+  default:
+    return "unknown";
+  }
+}
+
+/**
+ * Write the answer of GET /api/diagnostics: the state of the board, and the kept log lines numbered after or later.
+ */
+void printDiagnostics(Print &out, uint32_t after)
+{
+  out.print("{");
+  printJsonMember(out, "version", FRITZGATE_VERSION);
+  // esp_timer counts microseconds in 64 bits, so unlike millis() it doesn't wrap after 49.7 days
+  out.printf(",\"uptime\":%lu,", (unsigned long)(esp_timer_get_time() / 1000000));
+  printJsonMember(out, "resetReason", resetReason());
+  out.printf(",\"freeHeap\":%lu,\"minFreeHeap\":%lu,\"freePsram\":%lu,\"rssi\":%d,",
+             (unsigned long)ESP.getFreeHeap(),
+             (unsigned long)ESP.getMinFreeHeap(),
+             (unsigned long)ESP.getFreePsram(),
+             (int)WiFi.RSSI());
+  printJsonMember(out, "fritzOsVersion", fritzSession.version());
+  out.print(",\"fritzApi\":");
+  ThermostatApi *api = fritzSession.api();
+  if (api)
+    printJsonString(out, api->name());
+  else
+    out.print("null");
+  out.print(",\"log\":");
+  printLog(out, after);
+  out.print("}");
+}
+
+/**
  * This is the Arduino main loop function.
  */
 void loop()
@@ -947,7 +1006,9 @@ void loop()
         if (c == '\n' && currentLineIsBlank)
         {
           linebuf[lineIndex - 1] = 0;
-          LOG_HTTPF("HTTP request: %s", linebuf);
+          // the diagnostics dialog asks every few seconds, its requests would fill the log it shows
+          if (!startsWith(linebuf, "GET /api/diagnostics"))
+            LOG_HTTPF("HTTP request: %s", linebuf);
 
           if (startsWith(linebuf, "GET /api/status"))
           {
@@ -991,6 +1052,15 @@ void loop()
               history.print(out, ntpClient.getEpochTime() - NTP_TIME_OFFSET, hours, step);
               out.flush();
             }
+            client.flush();
+            break;
+          }
+          else if (startsWith(linebuf, "GET /api/diagnostics"))
+          {
+            writeJsonHeaders(client);
+            BufferedPrint<1024> out(client);
+            printDiagnostics(out, (uint32_t)queryParameter(linebuf, "after", 0));
+            out.flush();
             client.flush();
             break;
           }
