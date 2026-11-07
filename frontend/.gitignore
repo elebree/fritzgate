@@ -26,3 +26,6 @@ dist-ssr
 # Cypress run output
 cypress/screenshots
 cypress/videos
+
+# Svelte files transpiled by svelte-check --tsgo
+.svelte-check

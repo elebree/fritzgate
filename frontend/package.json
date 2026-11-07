@@ -8,7 +8,7 @@
     "build": "vite build",
     "build:firmware": "vite build --mode firmware",
     "preview": "vite preview",
-    "check": "svelte-check --tsconfig ./tsconfig.json",
+    "check": "svelte-check --tsconfig ./tsconfig.json --tsgo",
     "cy:open": "npx cypress open",
     "cy:e2e": "npx cypress run"
   },
@@ -16,13 +16,14 @@
     "@picocss/pico": "^2.1.1",
     "@sveltejs/vite-plugin-svelte": "^7.3.1",
     "@tsconfig/svelte": "^5.0.8",
+    "@typescript/native": "npm:typescript@^7.0.2",
     "cypress": "^16.2.1",
     "sass": "^1.108.1",
     "svelte": "^5.57.3",
     "svelte-check": "^4.7.8",
     "svelte-gauge": "^2.0.2",
     "tslib": "^2.9.1",
-    "typescript": "^7.0.2",
+    "typescript": "^6.0.3",
     "vite": "^8.3.6",
     "vite-plugin-singlefile": "^2.3.4"
   }

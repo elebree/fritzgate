@@ -37,7 +37,7 @@
 >
   <article>
     <header>
-      <button aria-label="Close" rel="prev" on:click={close}></button>
+      <button aria-label="Close" class="close" on:click={close}></button>
       <slot name="header" />
     </header>
     <slot />
