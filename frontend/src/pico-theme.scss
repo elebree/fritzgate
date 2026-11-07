@@ -1,4 +1,14 @@
 
+/*
+ * Dialogs cover the page with Pico's semi-transparent overlay, without its blur. Pico blurs the whole page behind the
+ * dialog element, so the browser blurred it again with every change inside a dialog or behind it (the chart crosshair,
+ * scrolling, a text selection, the gauges after a status refresh), which froze the dialog for a few hundred
+ * milliseconds each time.
+ */
+:root {
+  --pico-modal-overlay-backdrop-filter: none;
+}
+
 /* Amber color for light color scheme (Default) */
 /* Can be forced with data-theme="light" */
 [data-theme=light],

@@ -97,8 +97,9 @@
     clearTimeout(timer);
   });
 
-  const celsius = (value: number) =>
-    value.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + "℃";
+  // Made once, as toLocaleString() with options makes a new formatter for every value of the table
+  const tenths = new Intl.NumberFormat(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  const celsius = (value: number) => tenths.format(value) + "℃";
   const signedCelsius = (value: number) => (value > 0 ? "+" : "") + celsius(value);
   const percent = (value: number) => Math.round(value) + "%";
   const hasValues = (values: (number | null)[]) => values.some((value) => value != null);
@@ -121,25 +122,32 @@
   $: step = stepSeconds * 1000;
   $: withDate = hours > 7 * 24;
 
-  $: thermostatHistory = thermostat && data?.thermostats.find((v) => v.id === thermostat?.id);
-  $: sensorHistory = sensor && data?.sensors.find((v) => v.id === sensor?.id);
+  // The panel uses only these of the devices. The status refresh every 2 s brings new device objects, which would
+  // otherwise redraw the charts and the table each time; these stay equal, so nothing below runs again.
+  $: thermostatId = thermostat?.id;
+  $: sensorId = sensor?.id;
+  $: sensorName = sensor?.name;
+  $: sensorHumidity = !!sensor?.humidity;
+
+  $: thermostatHistory = thermostatId !== undefined ? data?.thermostats.find((v) => v.id === thermostatId) : undefined;
+  $: sensorHistory = sensorId !== undefined ? data?.sensors.find((v) => v.id === sensorId) : undefined;
   // The values follow the devices, not the readings, so the panel keeps its size when the history arrives
   $: columns = [
-    sensor && {
+    sensorName !== undefined && {
       key: "sensor",
-      label: sensor.name,
+      label: sensorName,
       color: SENSOR_COLOR,
       values: alignEnd(sensorHistory?.temperature, count),
       format: celsius,
     },
-    thermostat && {
+    thermostatId !== undefined && {
       key: "thermostat",
       label: "Thermostat",
       color: THERMOSTAT_COLOR,
       values: alignEnd(thermostatHistory?.temperature, count),
       format: celsius,
     },
-    thermostat && {
+    thermostatId !== undefined && {
       key: "target",
       label: "Target",
       color: TARGET_COLOR,
@@ -147,14 +155,14 @@
       values: alignEnd(thermostatHistory?.targetTemperature, count),
       format: (value: number) => (value ? celsius(value) : "off"),
     },
-    sensor?.humidity && {
+    sensorHumidity && {
       key: "humidity",
       label: "Humidity",
       color: SENSOR_COLOR,
       values: alignEnd(sensorHistory?.humidity, count),
       format: percent,
     },
-    thermostat && {
+    thermostatId !== undefined && {
       key: "offset",
       label: "Offset",
       color: THERMOSTAT_COLOR,

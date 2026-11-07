@@ -53,6 +53,13 @@ const HOUR_MS = 60 * 60 * 1000;
  */
 const TIME_FORMAT: Intl.DateTimeFormatOptions = { hour: "2-digit", minute: "2-digit", hourCycle: "h23" };
 
+// Made once: toLocaleString() with options makes a new formatter with each call, which takes ~0.1 s for a day's table
+const tickTime = new Intl.DateTimeFormat(undefined, TIME_FORMAT);
+const tickWeekday = new Intl.DateTimeFormat(undefined, { weekday: "short" });
+const tickDate = new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short" });
+const pointTime = new Intl.DateTimeFormat(undefined, { weekday: "short", ...TIME_FORMAT });
+const pointDateTime = new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short", ...TIME_FORMAT });
+
 /**
  * Ticks for a time axis from from to to (milliseconds), at most maxTicks: on whole hours, local midnights or Mondays,
  * labeled with the time, the weekday or the date
@@ -82,10 +89,10 @@ export function timeTicks(from: number, to: number, maxTicks: number) {
         time: date.getTime(),
         label:
           "hours" in interval
-            ? date.toLocaleTimeString(undefined, TIME_FORMAT)
+            ? tickTime.format(date)
             : interval.days < 7
-              ? date.toLocaleDateString(undefined, { weekday: "short" })
-              : date.toLocaleDateString(undefined, { day: "numeric", month: "short" }),
+              ? tickWeekday.format(date)
+              : tickDate.format(date),
       });
     }
     if ("hours" in interval) {
@@ -99,10 +106,7 @@ export function timeTicks(from: number, to: number, maxTicks: number) {
 
 /** The time of a point, with the weekday, and with the date if the points span weeks */
 export function formatTime(time: number, withDate: boolean) {
-  return new Date(time).toLocaleString(
-    undefined,
-    withDate ? { day: "numeric", month: "short", ...TIME_FORMAT } : { weekday: "short", ...TIME_FORMAT }
-  );
+  return (withDate ? pointDateTime : pointTime).format(time);
 }
 
 /** SVG path of a line through the values, broken at gaps. A value between two gaps becomes a dot. */

@@ -132,6 +132,14 @@ describe("dashboard", () => {
     cy.contains("article header", "Sensors").should("not.exist");
   });
 
+  it("doesn't blur the dashboard under a dialog", () => {
+    cy.stubApi(statusData());
+    cy.visit("/#setup");
+
+    // with a blurred backdrop, every change in a dialog or behind it redrew the whole page and froze the dialog
+    cy.get("dialog[open]").should("have.css", "backdrop-filter", "none");
+  });
+
   it("fits two gauges per row on phones and more than four on wide screens", () => {
     cy.stubApi(statusData());
 
