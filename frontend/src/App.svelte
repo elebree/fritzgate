@@ -72,6 +72,7 @@
       }
 
       state = {
+        version: newData.version,
         fritz: { ...newData.fritz },
         sensors: newData.sensors.map((v) => ({
           ...v,
@@ -97,6 +98,7 @@
     <ul>
       <li>
         <strong>FritzGate</strong>
+        {#if state?.version}<small class="version">{state.version}</small>{/if}
         <span aria-busy={busy}></span>
       </li>
     </ul>
@@ -132,3 +134,9 @@
     <SensorDialog sensor={shownSensor} {api} onClose={closeDialog} />
   {/if}
 </main>
+
+<style>
+  .version {
+    color: var(--pico-muted-color);
+  }
+</style>

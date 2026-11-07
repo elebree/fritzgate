@@ -34,6 +34,21 @@ describe("dashboard", () => {
     });
   });
 
+  it("shows the firmware version next to the name", () => {
+    cy.stubApi(statusData({ version: "v1.2.0" }));
+    cy.visit("/");
+
+    cy.get("nav .version").should("have.text", "v1.2.0").parent().should("contain", "FritzGate");
+  });
+
+  it("shows no version for firmware that doesn't report it", () => {
+    cy.stubApi(statusData());
+    cy.visit("/");
+
+    cy.contains("article", "Thermostats");
+    cy.get("nav .version").should("not.exist");
+  });
+
   it("shows the reading of the reference sensor with the thermostat's own below", () => {
     cy.stubApi(statusData());
     cy.visit("/");

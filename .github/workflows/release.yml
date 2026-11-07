@@ -51,7 +51,11 @@ jobs:
       - name: Install PlatformIO Core and esptool
         run: pip install --upgrade platformio esptool==4.8.1
 
+      # The firmware logs the tag at start and reports it in /api/status, which the web UI shows. PlatformIO adds these
+      # flags to the build_flags of platformio.ini.
       - name: Build firmware
+        env:
+          PLATFORMIO_BUILD_FLAGS: -D FRITZGATE_VERSION=\"${{ github.ref_name }}\"
         run: pio run
 
       # Offsets match the esp32cam board (huge_app partitions, DIO flash at 40 MHz, 4 MB)

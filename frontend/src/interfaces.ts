@@ -13,6 +13,8 @@ export interface SensorStatus {
 }
 
 export interface StatusData {
+    /** Release tag of the firmware, such as "v1.2.0", or "dev" */
+    version?: string;
     sensors: SensorStatus[];
     thermostats: DeviceStatus[];
     fritz: {

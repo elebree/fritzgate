@@ -32,6 +32,12 @@
 #include "./src/qrcode/qr_code_reader.h"
 #endif
 
+// Release tag of the firmware, such as "v1.2.0". release.yml passes it as a build flag (-D FRITZGATE_VERSION=\"v1.2.0\"
+// in PLATFORMIO_BUILD_FLAGS); other builds are "dev". Logged at start and reported in /api/status.
+#ifndef FRITZGATE_VERSION
+#define FRITZGATE_VERSION "dev"
+#endif
+
 // Watchdog timer: the device restarts automatically if FRITZ!Box credentials are set, but the FRITZ!Box doesn't answer
 // the list of thermostats for 5 minutes. Without credentials, loop() feeds it.
 #define WATCHDOG_TIMEOUT 60 * 5
@@ -807,7 +813,7 @@ void setupConfig()
 void setup()
 {
   Serial.begin(115200);
-  LOG_SUCCESS("FritzGate starting");
+  LOG_SUCCESSF("FritzGate %s starting", FRITZGATE_VERSION);
 
   setupWatchdog();
   setupConfig();
@@ -947,7 +953,9 @@ void loop()
           {
             long timestamp = ntpClient.getEpochTime();
             writeJsonHeaders(client);
-            client.printf("{\"fritz\":{\"status\":\"%s\",", fritzStatus);
+            client.print("{");
+            printJsonMember(client, "version", FRITZGATE_VERSION);
+            client.printf(",\"fritz\":{\"status\":\"%s\",", fritzStatus);
             printJsonMember(client, "host", config.fritz_host);
             client.print(",");
             printJsonMember(client, "user", config.fritz_user);
