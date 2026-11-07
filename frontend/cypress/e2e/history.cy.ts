@@ -108,6 +108,35 @@ describe("history", () => {
     cy.get("dialog table tbody tr").eq(1).should("contain", celsius(19.2));
   });
 
+  it("keeps the readings from before a restart of FritzGate", () => {
+    cy.visit("/#thermostat-16");
+    cy.contains("dialog summary", "Table").click();
+    // the points with readings, of the second half of the day
+    cy.get("dialog table tbody tr").should("have.length", 144);
+
+    // after a restart, FritzGate has only the readings of the current step
+    const restarted = historyData();
+    restarted.sensors.forEach((sensor) => {
+      sensor.temperature = sensor.temperature.slice(-1);
+      sensor.humidity = sensor.humidity.slice(-1);
+    });
+    restarted.thermostats.forEach((thermostat) => {
+      thermostat.temperature = thermostat.temperature.slice(-1);
+      thermostat.targetTemperature = thermostat.targetTemperature.slice(-1);
+      thermostat.offset = thermostat.offset.slice(-1);
+    });
+    cy.intercept({ method: "GET", pathname: "/api/history" }, { headers: corsHeaders, body: restarted }).as(
+      "restarted"
+    );
+    cy.reload();
+    cy.wait("@restarted");
+    cy.contains("dialog summary", "Table").click();
+
+    // the readings the browser kept, and the new ones; one more if a new step began in between
+    cy.get("dialog table tbody tr").should("have.length.at.least", 144);
+    cy.get("dialog table tbody tr").first().should("contain", celsius(19.7));
+  });
+
   it("shows heating that is off as target off", () => {
     const history = historyData();
     const kitchen = history.thermostats.find((thermostat) => thermostat.id === "16")!;
