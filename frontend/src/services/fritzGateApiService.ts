@@ -1,4 +1,5 @@
-import type { ApiService, HistoryData, StatusData } from "../interfaces";
+import type { ApiService, Diagnostics, HistoryData, StatusData } from "../interfaces";
+import { keepHistory } from "./historyCache";
 
 export class FritzGateApiService implements ApiService {
     private getEndpoint(endpoint: string) {
@@ -31,6 +32,18 @@ export class FritzGateApiService implements ApiService {
         });
         if (!response.ok) {
             throw new Error(`history: HTTP ${response.status}`);
+        }
+        // joined with the answers the browser kept, as FritzGate loses its history when it restarts
+        return keepHistory(hours, await response.json());
+    }
+
+    async fetchDiagnostics(after: number): Promise<Diagnostics> {
+        // the first answer has all kept lines, up to about 70 KB; later ones only the new lines
+        const response = await fetch(this.getEndpoint(`diagnostics?after=${after}`), {
+            signal: AbortSignal.timeout(15000),
+        });
+        if (!response.ok) {
+            throw new Error(`diagnostics: HTTP ${response.status}`);
         }
         return await response.json();
     }

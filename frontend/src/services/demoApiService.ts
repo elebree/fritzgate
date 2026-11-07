@@ -1,4 +1,4 @@
-import { Status, type ApiService, type HistoryData, type SensorStatus, type StatusData } from "../interfaces";
+import { Status, type ApiService, type Diagnostics, type HistoryData, type SensorStatus, type StatusData } from "../interfaces";
 import { demoHistory } from "./demoHistory";
 
 export class DemoApiService implements ApiService {
@@ -52,6 +52,43 @@ export class DemoApiService implements ApiService {
     async fetchHistory(hours: number, step: number): Promise<HistoryData> {
         const status = await this.ensureStatusLoaded();
         return demoHistory(status, Date.now() / 1000, hours, step);
+    }
+
+    async fetchDiagnostics(after: number): Promise<Diagnostics> {
+        const status = await this.ensureStatusLoaded();
+        // the lines a board logs after its start, in the format of logLine() in the firmware
+        const line = (seconds: number, level: string, message: string) =>
+            `[${String(Math.round(seconds * 1000)).padStart(6)}][${level}] ${message}`;
+        const lines = [
+            line(0.4, "S", "FritzGate demo starting"),
+            line(0.9, "I", "WiFi connecting: demo"),
+            line(3.2, "S", "WiFi ready: http://192.0.2.10"),
+            line(31, "S", "FRITZ authenticated"),
+            line(31.4, "S", "FRITZ!OS 8.26, API: Smart Home REST API"),
+            ...status.sensors.map((sensor, i) =>
+                line(40 + i, "D", `Theengs device: ${JSON.stringify({
+                    id: sensor.id,
+                    name: sensor.name,
+                    tempc: sensor.temperature,
+                    hum: sensor.humidity,
+                })}`)
+            ),
+            line(61, "H", "HTTP request: GET /api/status HTTP/1.1"),
+        ];
+        // like the board: the lines numbered after or later, all of them for an after beyond the last
+        const first = after > lines.length ? 0 : after;
+        return {
+            version: "demo",
+            uptime: 3600 + Math.floor(performance.now() / 1000),
+            resetReason: "power_on",
+            freeHeap: 92 * 1024,
+            minFreeHeap: 71 * 1024,
+            freePsram: 2600 * 1024,
+            rssi: -58,
+            fritzOsVersion: "8.26",
+            fritzApi: "Smart Home REST API",
+            log: { first, next: lines.length, lines: lines.slice(first) },
+        };
     }
 
     async setBinding(device: string, reference: string): Promise<Response> {

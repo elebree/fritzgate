@@ -1,6 +1,6 @@
 /// <reference types="cypress" />
 import type { StatusData } from "../../src/interfaces";
-import { corsHeaders, historyData } from "./api";
+import { corsHeaders, diagnosticsAfter, diagnosticsData, historyData } from "./api";
 
 declare global {
   namespace Cypress {
@@ -8,7 +8,8 @@ declare global {
       /**
        * Stubs the whole FritzGate API. GET /api/status answers with `status`, or with what it
        * returns at request time when it is a function. GET /api/history answers with historyData() of that status for
-       * the requested hours and step. The requests are aliased @status, @history, @binding and @fritzauth.
+       * the requested hours and step, GET /api/diagnostics with the lines of diagnosticsData() after the requested one.
+       * The requests are aliased @status, @history, @diagnostics, @binding and @fritzauth.
        */
       stubApi(status: StatusData | (() => StatusData)): Chainable<void>;
       /** The gauge of a thermostat on the dashboard */
@@ -43,6 +44,9 @@ Cypress.Commands.add("stubApi", (status) => {
       ),
     });
   }).as("history");
+  cy.intercept({ method: "GET", pathname: "/api/diagnostics" }, (req) => {
+    req.reply({ headers: corsHeaders, body: diagnosticsAfter(diagnosticsData(), Number(req.query.after ?? 0)) });
+  }).as("diagnostics");
   cy.intercept("POST", "**/api/thermostat", { headers: corsHeaders, body: {} }).as("binding");
   cy.intercept("POST", "**/api/fritzauth", { headers: corsHeaders, body: {} }).as("fritzauth");
 });
