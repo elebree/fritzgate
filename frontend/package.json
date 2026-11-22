@@ -19,7 +19,7 @@
     "@typescript/native": "npm:typescript@^7.0.2",
     "cypress": "^16.2.1",
     "sass": "^1.108.1",
-    "svelte": "^5.57.3",
+    "svelte": "^5.58.0",
     "svelte-check": "^4.7.8",
     "svelte-gauge": "^2.0.2",
     "tslib": "^2.9.1",
