@@ -24,6 +24,7 @@
 #include <esp_task_wdt.h>
 #include <esp_system.h>
 #include <esp_timer.h>
+#include <mutex>
 
 // GPIO for ESP32-CAM flash (LED), typically GPIO 4
 #define FLASH_GPIO_NUM 4
@@ -41,11 +42,15 @@
 #endif
 
 // Watchdog timer: the device restarts automatically if FRITZ!Box credentials are set, but the FRITZ!Box doesn't answer
-// the list of thermostats for 5 minutes. Without credentials, loop() feeds it.
+// the list of thermostats for 5 minutes (syncTask() feeds it, and without credentials every 30 s), or if loop() hangs
+// for 5 minutes (it feeds it with each pass).
 #define WATCHDOG_TIMEOUT 60 * 5
 
 // FritzBox settings refresh interval: 30 seconds
 #define FRITZGATE_REFRESH_TIMEOUT 30
+
+// Stack of the sync task in bytes: a bit more than the 8 KB of loop(), where the sync ran before
+#define SYNC_TASK_STACK_SIZE (12 * 1024)
 
 // Seconds a reference sensor reading is used to correct the offset: 5 minutes
 #define REFERENCE_STALE_TIMEOUT (60 * 5)
@@ -122,11 +127,16 @@ struct Config
 Config defaultConfig;
 Config config = {};
 
-// Tracks the last refresh timestamp for FritzBox Smart Home control
-unsigned long fritzSmartHomeControlLastRefreshMillis = 0;
-
-// Tracks when loop() last fed the watchdog while no FRITZ!Box credentials are set
-unsigned long watchdogLastFeedMillis = 0;
+// The FRITZ!Box sync runs in a task of its own (syncTask()), so that a login or a slow FRITZ!Box doesn't hold up the
+// web server in loop(). stateMutex guards what both use: config, thermostats, credentialsChanged, fritzOsVersion and
+// fritzApiName. The sync holds it only between its requests to the FRITZ!Box, and only the sync uses fritzSession.
+std::mutex stateMutex;
+TaskHandle_t syncTaskHandle = NULL;
+// Set by /api/fritzauth, for the sync task to give the new credentials to fritzSession
+bool credentialsChanged = false;
+// FRITZ!OS version and API of the session, for /api/diagnostics
+std::string fritzOsVersion;
+const char *fritzApiName = NULL;
 
 // Tracks the last NTP clock sync attempt
 unsigned long ntpLastSyncMillis = 0;
@@ -139,7 +149,10 @@ unsigned long historyLastSampleMillis = 0;
 // Holds pointers to active sensors
 static int sensorsCount = 0;
 static Sensor *sensors[MAX_SENSORS_COUNT] = {};
+// The thermostats of the last sync, for the web server and the history. The sync task reads and corrects its own
+// (syncThermostats), and copies them here after each sync.
 std::vector<Thermostat> thermostats;
+std::vector<Thermostat> syncThermostats;
 
 // Readings of the last 30 days, served by /api/history
 History history;
@@ -150,7 +163,8 @@ const char FRITZ_STATUS_NOT_CONFIGURED[] = "NOT_CONFIGURED";
 const char FRITZ_STATUS_CONNECTION[] = "CONNECTING";
 const char FRITZ_STATUS_CONNECTED[] = "CONNECTED";
 const char FRITZ_STATUS_FAILURE[] = "FAILURE";
-const char *fritzStatus = FRITZ_STATUS_NOT_CONFIGURED;
+// One of the states above; a pointer, which the tasks write and read at once without stateMutex
+const char *volatile fritzStatus = FRITZ_STATUS_NOT_CONFIGURED;
 
 WiFiUDP ntpUDP;
 Session fritzSession(DEFAULT_FRITZBOX_HOST, 80, "", "");
@@ -278,7 +292,7 @@ Sensor *getThermostatBindingSensor(const char *thermistatId)
 /**
  * Set the reference sensor of a thermostat; an empty sensor id unbinds it. A new binding saves the thermostat's
  * current offset, and an unbound thermostat keeps its binding until syncFritzBox() has restored that offset.
- * Returns false if the thermostat is unknown, an id is too long or all bindings are in use.
+ * Returns false if the thermostat is unknown, an id is too long or all bindings are in use. Call with stateMutex held.
  */
 bool updateThermostatBinding(const char *thermostatId, const char *sensorId)
 {
@@ -392,10 +406,12 @@ bool writeThermostatOffset(Thermostat &thermostat, int32_t offset)
 }
 
 /**
- * Correct the offset of a bound thermostat from its reference sensor. When the thermostat was unbound or its sensor
- * is lost, give it back the offset it had before it was bound. Returns true if an offset was sent to the FRITZ!Box.
+ * The offset to write for a bound thermostat: the one of its reference sensor, or, when the thermostat was unbound or
+ * its sensor is lost, the offset it had before it was bound. Returns false if no offset is due. Call with stateMutex
+ * held: it reads the binding, and forgets the binding of an unbound thermostat whose offset is back. The caller writes
+ * the offset with writeThermostatOffset(), after releasing stateMutex.
  */
-bool correctThermostat(Thermostat &thermostat, int binding, unsigned long timestamp)
+bool offsetToWrite(const Thermostat &thermostat, int binding, unsigned long timestamp, int32_t &offset)
 {
   const char *sensorId = config.sensors_bindings[binding][1];
   int32_t originalOffset = config.sensors_bindings_offsets[binding];
@@ -413,7 +429,8 @@ bool correctThermostat(Thermostat &thermostat, int binding, unsigned long timest
       return false;
     }
     LOG_INFOF("\"%s\": unbound, restoring the offset it had before", thermostat.name.c_str());
-    return writeThermostatOffset(thermostat, originalOffset);
+    offset = originalOffset;
+    return true;
   }
 
   Sensor *referenceSensor = GetSensorById(sensorId);
@@ -423,14 +440,15 @@ bool correctThermostat(Thermostat &thermostat, int binding, unsigned long timest
   if (referenceSensor && age > -REFERENCE_STALE_TIMEOUT && age < REFERENCE_STALE_TIMEOUT)
   {
     auto refTemperature = (int)(referenceSensor->temperatureAvg * 10); // use average temp
-    auto offset = refTemperature - (int)thermostat.temperature;
-    offset = ((offset + ((offset > 0) - (offset < 0)) * 5 / 2) / 5) * 5; // round to 0.5 grad
-    offset = min(50, max(-50, offset));                                  // not more than 5 grad difference with ref sensor
+    auto corrected = refTemperature - (int)thermostat.temperature;
+    corrected = ((corrected + ((corrected > 0) - (corrected < 0)) * 5 / 2) / 5) * 5; // round to 0.5 grad
+    corrected = min(50, max(-50, corrected)); // not more than 5 grad difference with ref sensor
 
     // update offset if it is changed, or the thermostat still uses an external sensor set in FRITZ!Box
-    if (offset != thermostat.offset || externalSensor)
-      return writeThermostatOffset(thermostat, offset);
-    return false;
+    if (corrected == thermostat.offset && !externalSensor)
+      return false;
+    offset = corrected;
+    return true;
   }
 
   // No recent reading, or none since the start: keep the offset for a while, then restore the original one until the
@@ -442,7 +460,8 @@ bool correctThermostat(Thermostat &thermostat, int binding, unsigned long timest
                  thermostat.name.c_str(),
                  sensorId,
                  age / 60);
-    return writeThermostatOffset(thermostat, originalOffset);
+    offset = originalOffset;
+    return true;
   }
   return false;
 }
@@ -471,8 +490,13 @@ bool hasNumericThermostatBindings()
 void migrateThermostatBindings()
 {
   static int attempts = 0;
-  if (attempts >= BINDINGS_MIGRATION_ATTEMPTS || !hasNumericThermostatBindings())
+  if (attempts >= BINDINGS_MIGRATION_ATTEMPTS)
     return;
+  {
+    std::lock_guard<std::mutex> lock(stateMutex);
+    if (!hasNumericThermostatBindings())
+      return;
+  }
 
   attempts++;
   std::vector<Thermostat> legacyThermostats;
@@ -484,6 +508,7 @@ void migrateThermostatBindings()
   }
   attempts = BINDINGS_MIGRATION_ATTEMPTS;
 
+  std::lock_guard<std::mutex> lock(stateMutex);
   bool changed = false;
   int count = countThermostatBindings();
   for (int i = 0; i < count; i++)
@@ -513,69 +538,116 @@ void migrateThermostatBindings()
 }
 
 /**
- * Read the thermostats with the API chosen after the login. True if the FRITZ!Box answered the list of thermostats,
- * also an empty one.
+ * Read the thermostats of the sync with the API chosen after the login. True if the FRITZ!Box answered the list of
+ * thermostats, also an empty one.
  */
 bool queryThermostats()
 {
   ThermostatApi *api = fritzSession.api();
-  return api != NULL && api->queryThermostats(thermostats);
+  return api != NULL && api->queryThermostats(syncThermostats);
 }
 
 /**
- * Get state of FritzBox thermostats and update temperature offset if required.
+ * Copy the thermostats of the sync, with their reference sensors, and the FRITZ!OS version and API of the session, to
+ * what the web server and the history read.
+ */
+void publishSync()
+{
+  std::lock_guard<std::mutex> lock(stateMutex);
+  thermostats = syncThermostats;
+  for (auto &thermostat : thermostats)
+    thermostat.referenceSensor = getThermostatBindingSensorId(thermostat.id.c_str());
+  fritzOsVersion = fritzSession.version();
+  ThermostatApi *api = fritzSession.api();
+  fritzApiName = api ? api->name() : NULL;
+}
+
+/**
+ * Get state of FritzBox thermostats and update temperature offset if required. Runs in the sync task: the requests to
+ * the FRITZ!Box run without stateMutex, so that the web server can answer meanwhile.
  */
 bool syncFritzBox()
 {
   fritzStatus = FRITZ_STATUS_CONNECTION;
-  if (fritzSession.ensure_connection())
-  {
-    fritzStatus = FRITZ_STATUS_CONNECTED;
-    bool updates = false;
-
-    // the thermostat id is the unit UID with the REST API, the numeric device id with sh_control: when the API changes
-    // (a FRITZ!OS update), forget the thermostats read with the other one
-    static bool uidIds = false;
-    ThermostatApi *api = fritzSession.api();
-    if (api != NULL && api->usesUids() != uidIds)
-    {
-      thermostats.clear();
-      uidIds = api->usesUids();
-    }
-    if (uidIds)
-      migrateThermostatBindings();
-
-    // Once per sync, when the FRITZ!Box answered the list of thermostats: also an empty one, and also when the offsets
-    // are skipped, which can hold for all thermostats
-    if (queryThermostats())
-      feedWatchdog();
-    auto timestamp = ntpClient.getEpochTime();
-    for (auto iter = thermostats.begin(); iter != thermostats.end(); iter++)
-    {
-      iter->timestamp = timestamp;
-      iter->referenceSensor = getThermostatBindingSensorId(iter->id.c_str());
-      int binding = findThermostatBinding(iter->id.c_str());
-      if (binding >= 0 && correctThermostat(*iter, binding, timestamp))
-        updates = true;
-    }
-
-    if (updates)
-    {
-      queryThermostats();
-      auto timestamp = ntpClient.getEpochTime();
-      for (auto iter = thermostats.begin(); iter != thermostats.end(); iter++)
-      {
-        iter->timestamp = timestamp;
-        iter->referenceSensor = getThermostatBindingSensorId(iter->id.c_str());
-      }
-    }
-    return true;
-  }
-  else
+  if (!fritzSession.ensure_connection())
   {
     fritzStatus = FRITZ_STATUS_FAILURE;
+    publishSync();
+    return false;
   }
-  return false;
+  fritzStatus = FRITZ_STATUS_CONNECTED;
+
+  // the thermostat id is the unit UID with the REST API, the numeric device id with sh_control: when the API changes
+  // (a FRITZ!OS update), forget the thermostats read with the other one
+  static bool uidIds = false;
+  ThermostatApi *api = fritzSession.api();
+  if (api != NULL && api->usesUids() != uidIds)
+  {
+    syncThermostats.clear();
+    uidIds = api->usesUids();
+  }
+  if (uidIds)
+    migrateThermostatBindings();
+
+  // Once per sync, when the FRITZ!Box answered the list of thermostats: also an empty one, and also when the offsets
+  // are skipped, which can hold for all thermostats
+  if (queryThermostats())
+    feedWatchdog();
+
+  bool updates = false;
+  auto timestamp = ntpClient.getEpochTime();
+  for (auto &thermostat : syncThermostats)
+  {
+    thermostat.timestamp = timestamp;
+    int32_t offset = 0;
+    bool due;
+    {
+      std::lock_guard<std::mutex> lock(stateMutex);
+      int binding = findThermostatBinding(thermostat.id.c_str());
+      due = binding >= 0 && offsetToWrite(thermostat, binding, timestamp, offset);
+    }
+    if (due && writeThermostatOffset(thermostat, offset))
+      updates = true;
+  }
+
+  if (updates)
+  {
+    queryThermostats();
+    timestamp = ntpClient.getEpochTime();
+    for (auto &thermostat : syncThermostats)
+      thermostat.timestamp = timestamp;
+  }
+  publishSync();
+  return true;
+}
+
+/**
+ * The sync task: syncs with the FRITZ!Box every FRITZGATE_REFRESH_TIMEOUT, and right away when /api/fritzauth sets new
+ * credentials. The watchdog watches it: it is fed when the FRITZ!Box answers the list of thermostats, and, as there is
+ * nothing to sync without credentials, every FRITZGATE_REFRESH_TIMEOUT while none are set.
+ */
+void syncTask(void *)
+{
+  esp_task_wdt_add(NULL);
+  for (;;)
+  {
+    bool configured;
+    {
+      std::lock_guard<std::mutex> lock(stateMutex);
+      if (credentialsChanged)
+      {
+        fritzSession.configure(config.fritz_host, 80, config.fritz_user, config.fritz_pass);
+        credentialsChanged = false;
+      }
+      configured = fritzCredentialsConfigured();
+    }
+    if (configured)
+      syncFritzBox();
+    else
+      feedWatchdog();
+    // until the next sync, or new credentials
+    ulTaskNotifyTake(pdTRUE, pdMS_TO_TICKS(FRITZGATE_REFRESH_TIMEOUT * 1000UL));
+  }
 }
 
 void feedWatchdog()
@@ -711,6 +783,7 @@ void recordHistory()
     if (isRecentReading(now, sensor->timestamp))
       history.addSensor(sensor->id, utc, (int32_t)sensor->temperature, sensor->humidity);
   }
+  std::lock_guard<std::mutex> lock(stateMutex);
   for (auto &thermostat : thermostats)
   {
     if (thermostat.temperatureValid && isRecentReading(now, thermostat.timestamp))
@@ -852,6 +925,7 @@ void setup()
   setupBLE();
   setupHTTPD();
   setupNTP();
+  xTaskCreatePinnedToCore(syncTask, "fritz-sync", SYNC_TASK_STACK_SIZE, NULL, 1, &syncTaskHandle, ARDUINO_RUNNING_CORE);
 }
 
 /**
@@ -941,11 +1015,18 @@ void printDiagnostics(Print &out, uint32_t after)
              (unsigned long)ESP.getMinFreeHeap(),
              (unsigned long)ESP.getFreePsram(),
              (int)WiFi.RSSI());
-  printJsonMember(out, "fritzOsVersion", fritzSession.version());
+  // as of the last sync: fritzSession belongs to the sync task
+  std::string version;
+  const char *api;
+  {
+    std::lock_guard<std::mutex> lock(stateMutex);
+    version = fritzOsVersion;
+    api = fritzApiName;
+  }
+  printJsonMember(out, "fritzOsVersion", version);
   out.print(",\"fritzApi\":");
-  ThermostatApi *api = fritzSession.api();
   if (api)
-    printJsonString(out, api->name());
+    printJsonString(out, api);
   else
     out.print("null");
   out.print(",\"log\":");
@@ -958,29 +1039,17 @@ void printDiagnostics(Print &out, uint32_t after)
  */
 void loop()
 {
-  bool fritzConfigured = fritzCredentialsConfigured();
+  // The watchdog watches loop() too, which reaches this line again after each request: a request that never ends,
+  // such as an idle connection, restarts the board after WATCHDOG_TIMEOUT. The sync with the FRITZ!Box runs in
+  // syncTask(), which feeds the watchdog itself.
+  esp_task_wdt_reset();
 
   syncClock();
-
-  // Fetch data from FritzBox every 30 seconds
-  if (fritzConfigured && millis() - fritzSmartHomeControlLastRefreshMillis >= (FRITZGATE_REFRESH_TIMEOUT) * 1000UL)
-  {
-    fritzSmartHomeControlLastRefreshMillis = millis();
-    syncFritzBox();
-  }
 
   if (millis() - historyLastSampleMillis >= HISTORY_SAMPLE_INTERVAL * 1000UL)
   {
     historyLastSampleMillis = millis();
     recordHistory();
-  }
-
-  // Without FRITZ!Box credentials there is no sync to feed the watchdog, and the board only shows the sensors. A timer
-  // of its own, so that the first sync still starts right after the credentials are set.
-  if (!fritzConfigured && millis() - watchdogLastFeedMillis >= (FRITZGATE_REFRESH_TIMEOUT) * 1000UL)
-  {
-    watchdogLastFeedMillis = millis();
-    feedWatchdog();
   }
 
   // listen for incoming clients
@@ -1012,14 +1081,24 @@ void loop()
 
           if (startsWith(linebuf, "GET /api/status"))
           {
+            // copied, so that the sync doesn't wait while the answer is sent
+            std::vector<Thermostat> shownThermostats;
+            char host[sizeof(config.fritz_host)];
+            char user[sizeof(config.fritz_user)];
+            {
+              std::lock_guard<std::mutex> lock(stateMutex);
+              shownThermostats = thermostats;
+              memcpy(host, config.fritz_host, sizeof(host));
+              memcpy(user, config.fritz_user, sizeof(user));
+            }
             long timestamp = ntpClient.getEpochTime();
             writeJsonHeaders(client);
             client.print("{");
             printJsonMember(client, "version", FRITZGATE_VERSION);
             client.printf(",\"fritz\":{\"status\":\"%s\",", fritzStatus);
-            printJsonMember(client, "host", config.fritz_host);
+            printJsonMember(client, "host", host);
             client.print(",");
-            printJsonMember(client, "user", config.fritz_user);
+            printJsonMember(client, "user", user);
             client.print("},\"sensors\":[");
             for (int i = 0; i < sensorsCount; i++)
             {
@@ -1027,10 +1106,10 @@ void loop()
               client.print(i + 1 < sensorsCount ? "," : "");
             }
             client.println("], \"thermostats\":[");
-            for (int i = 0; i < thermostats.size(); i++)
+            for (int i = 0; i < shownThermostats.size(); i++)
             {
-              thermostats[i].Serialize(client, timestamp, 1);
-              client.print(i + 1 < thermostats.size() ? "," : "");
+              shownThermostats[i].Serialize(client, timestamp, 1);
+              client.print(i + 1 < shownThermostats.size() ? "," : "");
             }
             client.println("\r\n]}");
             client.flush();
@@ -1091,12 +1170,18 @@ void loop()
             }
             else
             {
-              copyField(config.fritz_host, host);
-              copyField(config.fritz_user, user);
-              copyField(config.fritz_pass, pass);
-              fritzStatus = FRITZ_STATUS_CONFIGURED;
-              saveConfig();
-              fritzSession.configure(config.fritz_host, 80, config.fritz_user, config.fritz_pass);
+              {
+                std::lock_guard<std::mutex> lock(stateMutex);
+                copyField(config.fritz_host, host);
+                copyField(config.fritz_user, user);
+                copyField(config.fritz_pass, pass);
+                fritzStatus = FRITZ_STATUS_CONFIGURED;
+                saveConfig();
+                // the sync task gives them to fritzSession, which only it uses, and syncs right away
+                credentialsChanged = true;
+              }
+              if (syncTaskHandle)
+                xTaskNotifyGive(syncTaskHandle);
 
               writeJsonHeaders(client);
               client.print("{}");
@@ -1111,6 +1196,8 @@ void loop()
 
             const char *thermostatId = thermostat["id"] | "";
             const char *referenceSensor = thermostat["referenceSensor"] | "";
+            // held while the short answer with the bindings is written too
+            std::lock_guard<std::mutex> lock(stateMutex);
             if (error || !updateThermostatBinding(thermostatId, referenceSensor))
             {
               writeJsonError(client, "unknown thermostat, id too long or no free binding");
