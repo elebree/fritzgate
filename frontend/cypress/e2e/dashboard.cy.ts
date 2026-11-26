@@ -28,7 +28,7 @@ describe("dashboard", () => {
 
     cy.contains("article", "Thermostats").within(() => {
       cy.get(".gauges > *").should("have.length", 5);
-      for (const name of ["Kitchen", "Living room", "Bedroom", "Child's room", "Bathroom"]) {
+      for (const name of ["Office", "Dining room", "Guest room", "Hallway", "Studio"]) {
         cy.gauge(name).should("be.visible");
       }
     });
@@ -53,8 +53,8 @@ describe("dashboard", () => {
     cy.stubApi(statusData());
     cy.visit("/");
 
-    // Kitchen measures 18.5 itself and uses Govee H5075 DDDD, which reads 19.7 and 41%
-    cy.gauge("Kitchen").within(() => {
+    // Office measures 18.5 itself and uses Govee H5075 DDDD, which reads 19.7 and 41%
+    cy.gauge("Office").within(() => {
       cy.contains("textPath", "Govee H5075 DDDD");
       cy.get(".slider-content").should("contain", celsius(19.7)).and("contain", "41%");
       cy.get(".badge.bottom").should("contain", celsius(18.5));
@@ -65,8 +65,8 @@ describe("dashboard", () => {
     cy.stubApi(statusData());
     cy.visit("/");
 
-    // Bathroom has no reference sensor in the fixture
-    cy.gauge("Bathroom").within(() => {
+    // Studio has no reference sensor in the fixture
+    cy.gauge("Studio").within(() => {
       cy.contains("textPath", "built-in sensor");
       cy.get(".slider-content").should("contain", celsius(20.5)).and("not.contain", "%");
     });
@@ -78,7 +78,7 @@ describe("dashboard", () => {
     cy.stubApi(data);
     cy.visit("/");
 
-    cy.gauge("Bathroom").contains("textPath", "FFFF (unavailable)");
+    cy.gauge("Studio").contains("textPath", "FFFF (unavailable)");
   });
 
   it("shows every thermostat that shares a reference sensor", () => {
@@ -87,8 +87,8 @@ describe("dashboard", () => {
     cy.stubApi(data);
     cy.visit("/");
 
-    cy.gauge("Kitchen").contains("textPath", "Govee H5075 DDDD");
-    cy.gauge("Bathroom").contains("textPath", "Govee H5075 DDDD");
+    cy.gauge("Office").contains("textPath", "Govee H5075 DDDD");
+    cy.gauge("Studio").contains("textPath", "Govee H5075 DDDD");
   });
 
   it("lists only the sensors no thermostat uses", () => {

@@ -59,10 +59,10 @@
   ],
   "thermostats": [
     {
-      "name": "Kitchen",
-      "id": "16",
+      "name": "Office",
+      "id": "00000 0000001",
       "model": "FRITZ!DECT 301",
-      "serial": "77777 0707001",
+      "serial": "00000 0000001",
       "data": "",
       "battery": 10,
       "rssi": 0,
@@ -81,10 +81,10 @@
       "referenceSensor": "GVH5075_DDDD"
     },
     {
-      "name": "Living room",
-      "id": "17",
+      "name": "Dining room",
+      "id": "00000 0000002",
       "model": "FRITZ!DECT 301",
-      "serial": "77777 0707002",
+      "serial": "00000 0000002",
       "data": "",
       "battery": 30,
       "rssi": 0,
@@ -103,10 +103,10 @@
       "referenceSensor": "GVH5075_CCCC"
     },
     {
-      "name": "Bedroom",
-      "id": "18",
+      "name": "Guest room",
+      "id": "00000 0000003",
       "model": "FRITZ!DECT 301",
-      "serial": "77777 0707003",
+      "serial": "00000 0000003",
       "data": "",
       "battery": 50,
       "rssi": 0,
@@ -125,10 +125,10 @@
       "referenceSensor": "GVH5075_AAAA"
     },
     {
-      "name": "Child's room",
-      "id": "19",
+      "name": "Hallway",
+      "id": "00000 0000004",
       "model": "FRITZ!DECT 301",
-      "serial": "77777 0707004",
+      "serial": "00000 0000004",
       "data": "",
       "battery": 70,
       "rssi": 0,
@@ -148,9 +148,9 @@
     },
     {
       "name": "Bathroom",
-      "id": "20",
+      "id": "00000 0000005",
       "model": "FRITZ!DECT 301",
-      "serial": "77777 0707005",
+      "serial": "00000 0000005",
       "data": "",
       "battery": 90,
       "rssi": 0,

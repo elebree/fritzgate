@@ -6,14 +6,17 @@ const HOURS = 1;
 const STEP = 300;
 const LAST = 1_000 * 3_600;
 
+// A thermostat id as the REST API of FRITZ!OS 8.20+ reports it: the AIN
+const AIN = "00000 0000001";
+
 const history = (last: number, temperatures: (number | null)[], step = STEP): HistoryData => ({
   last,
   step,
   sensors: [],
-  thermostats: [{ id: "16", temperature: temperatures, targetTemperature: [], offset: [] }],
+  thermostats: [{ id: AIN, temperature: temperatures, targetTemperature: [], offset: [] }],
 });
 
-const temperatures = (data: HistoryData) => data.thermostats.find((thermostat) => thermostat.id === "16")?.temperature;
+const temperatures = (data: HistoryData) => data.thermostats.find((thermostat) => thermostat.id === AIN)?.temperature;
 
 describe("history kept in the browser", () => {
   it("fills the steps that FritzGate lost in a restart with the kept values", () => {

@@ -56,14 +56,40 @@
       "temperatureAvg": 21.8,
       "seriesTimestamp": 1704063600,
       "timestamp": 1704063600
+    },
+    {
+      "name": "Govee H5075 7C2E",
+      "id": "GVH5075_7C2E",
+      "model": "H5075",
+      "serial": "7C2E",
+      "battery": 86,
+      "rssi": -81,
+      "humidity": 55.2,
+      "temperature": 19.6,
+      "temperatureAvg": 19.6,
+      "seriesTimestamp": 1704063600,
+      "timestamp": 1704063600
+    },
+    {
+      "name": "ThermoPro TP357 E91A",
+      "id": "GVH5075_E91A",
+      "model": "H5075",
+      "serial": "E91A",
+      "battery": 64,
+      "rssi": -72,
+      "humidity": 39.8,
+      "temperature": 23.0,
+      "temperatureAvg": 23.0,
+      "seriesTimestamp": 1704063600,
+      "timestamp": 1704063600
     }
   ],
   "thermostats": [
     {
-      "name": "Kitchen",
-      "id": "16",
+      "name": "Office",
+      "id": "00000 0000001",
       "model": "FRITZ!DECT 301",
-      "serial": "23515 0707001",
+      "serial": "00000 0000001",
       "battery": 10,
       "rssi": 0,
       "humidity": 0,
@@ -81,10 +107,10 @@
       "referenceSensor": "GVH5075_4683"
     },
     {
-      "name": "Living room",
-      "id": "17",
+      "name": "Dining room",
+      "id": "00000 0000002",
       "model": "FRITZ!DECT 301",
-      "serial": "23515 0707002",
+      "serial": "00000 0000002",
       "battery": 30,
       "rssi": 0,
       "humidity": 0,
@@ -102,10 +128,10 @@
       "referenceSensor": "GVH5075_34EF"
     },
     {
-      "name": "Bedroom",
-      "id": "18",
+      "name": "Guest room",
+      "id": "00000 0000003",
       "model": "FRITZ!DECT 301",
-      "serial": "23515 0707003",
+      "serial": "00000 0000003",
       "battery": 50,
       "rssi": 0,
       "humidity": 0,
@@ -123,10 +149,10 @@
       "referenceSensor": "GVH5075_01CB"
     },
     {
-      "name": "Child's room",
-      "id": "19",
+      "name": "Hallway",
+      "id": "00000 0000004",
       "model": "FRITZ!DECT 301",
-      "serial": "23515 0707004",
+      "serial": "00000 0000004",
       "battery": 70,
       "rssi": 0,
       "humidity": 0,
@@ -145,9 +171,9 @@
     },
     {
       "name": "Bathroom",
-      "id": "20",
+      "id": "00000 0000005",
       "model": "FRITZ!DECT 301",
-      "serial": "23515 0707005",
+      "serial": "00000 0000005",
       "battery": 90,
       "rssi": 0,
       "humidity": 0,

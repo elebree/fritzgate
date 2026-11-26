@@ -34,6 +34,24 @@ describe("diagnostics", () => {
     });
   });
 
+  it("doesn't ask for the status while it is open, and asks right away when it closes", () => {
+    cy.clock(Date.now(), ["setTimeout", "clearTimeout"]);
+    cy.visit("/");
+    cy.contains("article", "Thermostats");
+    cy.get("@status.all").should("have.length", 1);
+
+    cy.get('nav a[href="#diagnostics"]').click();
+    cy.get("dialog .log .line").should("have.length", 5);
+    // three times the status poll interval of 2 s
+    cy.tick(6000);
+    // time for a request to show up, if one was sent
+    cy.wait(300);
+    cy.get("@status.all").should("have.length", 1);
+
+    cy.go("back");
+    cy.get("@status.all").should("have.length", 2);
+  });
+
   it("explains a brownout and a board that isn't logged in", () => {
     stubDiagnostics(() => diagnosticsData({ resetReason: "brownout", rssi: -80, fritzOsVersion: "", fritzApi: null }));
     cy.visit("/#diagnostics");

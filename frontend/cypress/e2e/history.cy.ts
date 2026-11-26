@@ -6,7 +6,7 @@ describe("history", () => {
   });
 
   it("shows the last 24 hours of the thermostat and its reference sensor", () => {
-    cy.visit("/#thermostat-16");
+    cy.visit("/#thermostat-00000%200000001");
 
     cy.wait("@history").its("request.query").should("deep.equal", { hours: "24", step: "300" });
     cy.get("dialog .history").within(() => {
@@ -25,7 +25,7 @@ describe("history", () => {
   });
 
   it("shows only the thermostat without a reference sensor", () => {
-    cy.visit("/#thermostat-16");
+    cy.visit("/#thermostat-00000%200000001");
     cy.get("dialog select").select("");
 
     cy.get("dialog .readout").should("not.contain", "Govee").and("contain", "Thermostat");
@@ -34,7 +34,7 @@ describe("history", () => {
   });
 
   it("shows the sensor chosen in the dialog before it is saved", () => {
-    cy.visit("/#thermostat-16");
+    cy.visit("/#thermostat-00000%200000001");
     cy.wait("@history");
 
     cy.get("dialog select").select("GVH5075_AAAA");
@@ -45,7 +45,7 @@ describe("history", () => {
   });
 
   it("loads another range", () => {
-    cy.visit("/#thermostat-16");
+    cy.visit("/#thermostat-00000%200000001");
     cy.wait("@history");
 
     cy.contains("dialog button", "7 days").click();
@@ -59,7 +59,7 @@ describe("history", () => {
   });
 
   it("shows the values under the pointer, and the newest ones again when it leaves", () => {
-    cy.visit("/#thermostat-16");
+    cy.visit("/#thermostat-00000%200000001");
     cy.get("dialog .readout").should("contain", celsius(19.7));
 
     cy.contains("dialog figure", "Temperature")
@@ -77,7 +77,7 @@ describe("history", () => {
   });
 
   it("goes through time with the arrow keys", () => {
-    cy.visit("/#thermostat-16");
+    cy.visit("/#thermostat-00000%200000001");
 
     cy.contains("dialog figure", "Temperature").find(".plot").focus().type("{leftarrow}");
 
@@ -93,7 +93,7 @@ describe("history", () => {
   });
 
   it("shows the readings as a table, newest first", () => {
-    cy.visit("/#thermostat-16");
+    cy.visit("/#thermostat-00000%200000001");
 
     cy.contains("dialog summary", "Table").click();
 
@@ -109,7 +109,7 @@ describe("history", () => {
   });
 
   it("keeps the readings from before a restart of FritzGate", () => {
-    cy.visit("/#thermostat-16");
+    cy.visit("/#thermostat-00000%200000001");
     cy.contains("dialog summary", "Table").click();
     // the points with readings, of the second half of the day
     cy.get("dialog table tbody tr").should("have.length", 144);
@@ -139,11 +139,11 @@ describe("history", () => {
 
   it("shows heating that is off as target off", () => {
     const history = historyData();
-    const kitchen = history.thermostats.find((thermostat) => thermostat.id === "16")!;
-    kitchen.targetTemperature[kitchen.targetTemperature.length - 1] = 0;
+    const office = history.thermostats.find((thermostat) => thermostat.id === "00000 0000001")!;
+    office.targetTemperature[office.targetTemperature.length - 1] = 0;
     cy.intercept({ method: "GET", pathname: "/api/history" }, { headers: corsHeaders, body: history });
 
-    cy.visit("/#thermostat-16");
+    cy.visit("/#thermostat-00000%200000001");
 
     cy.get("dialog .readout").should("contain", "off Target");
   });
@@ -155,7 +155,7 @@ describe("history", () => {
       { headers: corsHeaders, body: { last, step: 300, sensors: [], thermostats: [] } }
     );
 
-    cy.visit("/#thermostat-16");
+    cy.visit("/#thermostat-00000%200000001");
 
     cy.get("dialog .empty").should("contain", "No readings yet");
     cy.get("dialog figure").should("have.length", 3);
@@ -166,7 +166,7 @@ describe("history", () => {
     cy.intercept({ method: "GET", pathname: "/api/history" }, (req) => {
       req.reply({ delay: 1000, headers: corsHeaders, body: historyData() });
     });
-    cy.visit("/#thermostat-16");
+    cy.visit("/#thermostat-00000%200000001");
 
     // empty charts while the history loads
     cy.get("dialog .readout").should("contain", "– Thermostat");
@@ -189,7 +189,7 @@ describe("history", () => {
       }
     }).as("flakyHistory");
 
-    cy.visit("/#thermostat-16");
+    cy.visit("/#thermostat-00000%200000001");
 
     // retries after 1 and 2 seconds
     cy.wait(["@flakyHistory", "@flakyHistory", "@flakyHistory"]);
@@ -203,7 +203,7 @@ describe("history", () => {
       "failedHistory"
     );
 
-    cy.visit("/#thermostat-16");
+    cy.visit("/#thermostat-00000%200000001");
 
     // the first request and 3 retries, after 1, 2 and 4 seconds
     cy.get("dialog .readout .time").should("have.attr", "aria-busy", "true");
@@ -217,7 +217,7 @@ describe("history", () => {
 
   it("refreshes every minute while the dialog is open", () => {
     cy.clock(Date.now(), ["setTimeout", "clearTimeout"]);
-    cy.visit("/#thermostat-16");
+    cy.visit("/#thermostat-00000%200000001");
     // the next refresh is scheduled once the answer is read
     cy.get("dialog .readout");
 

@@ -16,6 +16,8 @@
   // for a sensor that no thermostat uses, #diagnostics for the state and log of the board
   const THERMOSTAT_HASH = "#thermostat-";
   const SENSOR_HASH = "#sensor-";
+  const DIAGNOSTICS_HASH = "#diagnostics";
+  const STATUS_POLL_MS = 2000;
 
   export let api: ApiService;
   let state: StatusData | undefined = undefined;
@@ -24,6 +26,8 @@
   let dialogInHistory = false;
   let busy = false;
   let timer: ReturnType<typeof setTimeout>;
+  // Only the latest status request schedules the next one
+  let statusRequest = 0;
 
   $: configured = page.startsWith(THERMOSTAT_HASH)
     ? state?.thermostats.find(
@@ -37,16 +41,25 @@
   function isDialog(hash: string) {
     return (
       hash === "#setup" ||
-      hash === "#diagnostics" ||
+      hash === DIAGNOSTICS_HASH ||
       hash.startsWith(THERMOSTAT_HASH) ||
       hash.startsWith(SENSOR_HASH)
     );
   }
 
+  function setPage(hash: string) {
+    const diagnosticsClosed = page === DIAGNOSTICS_HASH && hash !== DIAGNOSTICS_HASH;
+    page = hash;
+    // the dashboard waited while the diagnostics dialog was open: bring it up to date right away
+    if (diagnosticsClosed) {
+      fetchData();
+    }
+  }
+
   function routeChange() {
     console.log(location.hash);
     const previous = page;
-    page = location.hash;
+    setPage(location.hash);
     dialogInHistory = isDialog(page) && !isDialog(previous);
   }
 
@@ -66,13 +79,23 @@
       history.back();
     } else {
       history.replaceState(null, "", location.pathname + location.search);
-      page = "";
+      setPage("");
     }
   }
 
+  // The diagnostics dialog asks the board for its state every few seconds itself, and the board answers one request at
+  // a time: while the dialog is open, the dashboard under it isn't refreshed. setPage() starts again when it closes.
   async function fetchData() {
+    clearTimeout(timer);
+    if (page === DIAGNOSTICS_HASH) {
+      return;
+    }
+    const current = ++statusRequest;
     try {
       const newData: StatusData | undefined = await api.fetchStatus();
+      if (current !== statusRequest) {
+        return;
+      }
       if (!newData) {
         busy = true;
         return;
@@ -90,10 +113,14 @@
 
       busy = false;
     } catch {
-      busy = true;
       // request failed
+      if (current === statusRequest) {
+        busy = true;
+      }
     } finally {
-      timer = setTimeout(fetchData, 2000);
+      if (current === statusRequest && page !== DIAGNOSTICS_HASH) {
+        timer = setTimeout(fetchData, STATUS_POLL_MS);
+      }
     }
   }
   fetchData();
@@ -111,7 +138,7 @@
     </ul>
     <ul>
       <li>
-        <a class="secondary" href="#diagnostics"
+        <a class="secondary" href={DIAGNOSTICS_HASH}
           ><Icon src={diagnosticsIcon} label="Diagnostics" --icon-size="1.5em" /></a
         >
       </li>
@@ -134,7 +161,7 @@
   {/if}
   {#if state && page === "#setup"}
     <FritzBoxDialog {api} data={state} onClose={closeDialog} />
-  {:else if page === "#diagnostics"}
+  {:else if page === DIAGNOSTICS_HASH}
     <DiagnosticsDialog {api} onClose={closeDialog} />
   {:else if state && configured}
     <ThermostatDialog

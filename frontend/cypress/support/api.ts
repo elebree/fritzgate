@@ -75,7 +75,7 @@ export function diagnosticsData(changes: Partial<Diagnostics> = {}): Diagnostics
       lines: [
         "[   412][S] FritzGate v1.2.0 starting",
         "[ 31020][S] FRITZ authenticated",
-        '[ 61200][W] Skip offset for "Kitchen": FRITZ!Box reports no temperature',
+        '[ 61200][W] Skip offset for "Office": FRITZ!Box reports no temperature',
         "[ 91500][E] HTTP GET /api/v0/smarthome/overview/units: 500",
         "[ 92000][H] HTTP request: GET /api/status HTTP/1.1",
       ],
