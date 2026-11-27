@@ -10,7 +10,7 @@ bool DataLuaApi::queryThermostats(std::vector<Thermostat> &thermostats)
   HTTPClient http;
   String body = String("xhr=1&sid=") + mSession.sid().c_str() + "&lang=en&page=sh_control&xhrId=all";
   bool result = mSession.post_form(http, "/data.lua", body) == HTTP_CODE_OK &&
-                FritzThermostat::parseDevices(http, thermostats);
+                FritzThermostat::parseDevices(http, thermostats, usesUids());
   http.end();
   return result;
 }
@@ -21,8 +21,8 @@ bool DataLuaApi::queryHolidayTemperature(Thermostat &thermostat)
   LOG_INFOF("FRITZ holiday temperature query: %s", thermostat.id.c_str());
   HTTPClient http;
   http.setReuse(false); // the form is not read to the end, close the connection instead of reusing it
-  String body = String("xhr=1&sid=") + mSession.sid().c_str() + "&device=" + thermostat.id.c_str() +
-                "&page=home_auto_hkr_edit";
+  String body = String("xhr=1&sid=") + mSession.sid().c_str() + "&device=" +
+                FritzThermostat::urlEncode(thermostat.id.c_str()).c_str() + "&page=home_auto_hkr_edit";
   bool found = mSession.post_form(http, "/data.lua", body) == HTTP_CODE_OK &&
                FritzThermostat::parseHolidayTemperature(http.getStream(), thermostat);
   http.end();
@@ -52,11 +52,64 @@ bool DataLuaApi::setOffset(Thermostat &thermostat, int32_t offset)
     http.getString();
   http.end();
   // FRITZ!Box answers 200 also when it rejects the form
-  return httpCode == HTTP_CODE_OK;
+  if (httpCode != HTTP_CODE_OK)
+    return false;
+  restoreTargetTemperature(thermostat);
+  return true;
 }
 
 bool ReadOnlyDataLuaApi::setOffset(Thermostat &thermostat, int32_t offset)
 {
   logSkip(thermostat, offset, "FRITZ!OS without Smart Home REST API");
   return false;
+}
+
+bool DataLua8Api::setOffset(Thermostat &thermostat, int32_t offset)
+{
+  // posting enabled holidays without their temperature disables them, so rather keep the offset
+  if (thermostat.enabledHolidays() > 0 && !queryHolidayTemperature(thermostat))
+  {
+    logSkip(thermostat, offset, "holiday temperature unknown");
+    return false;
+  }
+  logUpdate(thermostat, offset);
+
+  Thermostat changed = thermostat;
+  changed.offset = offset;
+  String body = FritzThermostat::getPostBody(changed, mSession.sid().c_str(), true);
+  // log the form without the session ID
+  LOG_HTTP(FritzThermostat::getPostBody(changed, "[SID]", true).c_str());
+
+  HTTPClient http;
+  http.setReuse(false); // an answer that is no JSON is not read to the end
+  bool applied = mSession.post_form(http, "/data.lua", body) == HTTP_CODE_OK &&
+                 FritzThermostat::parseApplyAnswer(http.getStream());
+  http.end();
+  if (applied)
+    restoreTargetTemperature(thermostat);
+  return applied;
+}
+
+// The form post sets the target temperature back to the one of the schedule, which drops a temperature set by hand.
+// Set the one read before the post again.
+void DataLuaApi::restoreTargetTemperature(const Thermostat &thermostat)
+{
+  if (thermostat.deviceId.empty())
+    return;
+  char temperature[16];
+  snprintf(temperature, sizeof(temperature), "%g", thermostat.targetTemperature / 10.0);
+  String body = String("saveTemperature%5Bid%5D=") + thermostat.deviceId.c_str() +
+                "&saveTemperature%5Btemperature%5D=" + temperature + "&page=sh_control&sid=" + mSession.sid().c_str();
+
+  HTTPClient http;
+  http.setReuse(false); // an answer that is no JSON is not read to the end
+  bool changed = false;
+  bool answered = mSession.post_form(http, "/data.lua", body) == HTTP_CODE_OK &&
+                  FritzThermostat::parseSaveTemperatureAnswer(http.getStream(), changed);
+  http.end();
+  // not changed: the post kept the target temperature, as it was the one of the schedule
+  if (!answered)
+    LOG_WARNINGF("\"%s\": target temperature %s not restored", thermostat.name.c_str(), temperature);
+  else if (changed)
+    LOG_INFOF("\"%s\": target temperature %s restored", thermostat.name.c_str(), temperature);
 }

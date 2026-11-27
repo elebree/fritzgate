@@ -33,6 +33,7 @@ Session::Session(const char *host, int port, const char *username, const char *p
       mPort(port),
       mTimeTillLogout(1100),
       mDataLuaApi(*this),
+      mDataLua8Api(*this),
       mReadOnlyApi(*this),
       mRestApi(*this)
 {
@@ -45,6 +46,7 @@ Session::Session()
       mPort(80),
       mTimeTillLogout(1100),
       mDataLuaApi(*this),
+      mDataLua8Api(*this),
       mReadOnlyApi(*this),
       mRestApi(*this)
 {
@@ -242,6 +244,12 @@ bool Session::detect_api()
     else
       mApi = &mDataLuaApi; // version unknown and no REST API: as before, treat it as 7.x
   }
+#if FRITZOS8_DATA_LUA
+  // experimental: FRITZ!OS 8.x writes the offset with its edit form, instead of the REST API (8.20+) or not at all
+  // (8.0x-8.1x)
+  if (mApi == &mRestApi || mApi == &mReadOnlyApi)
+    mApi = &mDataLua8Api;
+#endif
 
   LOG_SUCCESSF("FRITZ!OS %s, API: %s", mVersion.empty() ? "unknown" : mVersion.c_str(), mApi->name());
   return true;
