@@ -35,11 +35,12 @@ std::string FritzThermostat::urlEncode(const char *msg, bool spaceAsPlus)
     return encodedMsg;
 }
 
-void FritzThermostat::printPostBody(Stream &stream, Thermostat &info, const char *sid)
+void FritzThermostat::printPostBody(Stream &stream, Thermostat &info, const char *sid, bool fritzOs8)
 {
     stream.printf("xhr=1");
     stream.printf("&sid=%s", sid);
-    stream.printf("&device=%s", info.id.c_str());
+    // the numeric device id on 7.x, which the encoding leaves as it is; the AIN ("12345 0123456") on 8.x
+    stream.printf("&device=%s", urlEncode(info.id.c_str()).c_str());
     stream.printf("&view=");
     stream.printf("&back_to_page=%%2Fsmarthome%%2Fdevices.lua");
     stream.printf("&ule_device_name=%s", urlEncode(info.name.c_str()).c_str());
@@ -49,6 +50,14 @@ void FritzThermostat::printPostBody(Stream &stream, Thermostat &info, const char
         stream.printf("&locklocal=on");
     if (info.externalLocked)
         stream.printf("&lockuiapp=on");
+    if (fritzOs8)
+    {
+        // FRITZ!OS 8.x: sh_control doesn't report the temperature limit, so it is switched off
+        stream.printf("&Mintemp=16");
+        stream.printf("&Maxtemp=23");
+        if (info.timerActive)
+            stream.printf("&hkr_timer_active=1");
+    }
     if (info.adaptiveHeating)
         stream.printf("&hkr_adaptheat=1");
 
@@ -111,6 +120,10 @@ void FritzThermostat::printPostBody(Stream &stream, Thermostat &info, const char
     if (info.pushServiceEnabled)
     {
         stream.printf("&enabled=on");
+        // FRITZ!OS 8.x chooses the recipient: "default", the address of the push service, or "custom" (mailto).
+        // sh_control reports only an address, taken as a custom one.
+        if (fritzOs8)
+            stream.printf("&mail_type=%s", info.pushServiceMail.empty() ? "default" : "custom");
         stream.printf("&mailto=%s", urlEncode(info.pushServiceMail.c_str()).c_str());
     }
     stream.printf("&apply=");
@@ -159,10 +172,51 @@ bool FritzThermostat::parseHolidayTemperature(Stream &stream, Thermostat &info)
     return true;
 }
 
-String FritzThermostat::getPostBody(Thermostat &info, const char *sid)
+bool FritzThermostat::parseApplyAnswer(Stream &stream)
+{
+    StaticJsonDocument<64> filter;
+    filter["data"]["apply"] = true;
+    StaticJsonDocument<256> answer;
+    auto error = deserializeJson(answer, stream, DeserializationOption::Filter(filter));
+    if (error)
+    {
+        LOG_ERRORF("FRITZ edit form answer failed: %s", error.c_str());
+        return false;
+    }
+    const char *apply = answer["data"]["apply"] | "";
+    if (strcmp(apply, "ok") != 0)
+    {
+        LOG_ERRORF("FRITZ edit form not applied: \"%s\"", apply);
+        return false;
+    }
+    return true;
+}
+
+bool FritzThermostat::parseSaveTemperatureAnswer(Stream &stream, bool &changed)
+{
+    StaticJsonDocument<64> filter;
+    filter["data"]["done"] = true;
+    StaticJsonDocument<128> answer;
+    auto error = deserializeJson(answer, stream, DeserializationOption::Filter(filter));
+    if (error)
+    {
+        LOG_ERRORF("FRITZ target temperature answer failed: %s", error.c_str());
+        return false;
+    }
+    JsonVariant done = answer["data"]["done"];
+    if (!done.is<bool>())
+    {
+        LOG_ERROR("FRITZ target temperature answer without \"done\"");
+        return false;
+    }
+    changed = done.as<bool>();
+    return true;
+}
+
+String FritzThermostat::getPostBody(Thermostat &info, const char *sid, bool fritzOs8)
 {
     StreamString print;
-    printPostBody(print, info, sid);
+    printPostBody(print, info, sid, fritzOs8);
     return print;
 }
 
@@ -332,7 +386,22 @@ bool FritzThermostat::parseRestUnitConfiguration(const String &json, Thermostat 
     return true;
 }
 
-bool FritzThermostat::parseDevices(HTTPClient &http, std::vector<Thermostat> &thermostats)
+// The id of an sh_control device: the numeric device id, or with useUids the unit UID, which is the AIN of a FRITZ!DECT
+// thermostat. FRITZ!OS 7.x reports no uid, only the AIN.
+static std::string getDeviceId(JsonObject device, bool useUids)
+{
+    if (useUids)
+    {
+        const char *uid = device["uid"] | "";
+        if (uid[0] == 0)
+            uid = device["actorIdentificationNumber"] | "";
+        if (uid[0] != 0)
+            return uid;
+    }
+    return std::to_string(device["id"].as<int>());
+}
+
+bool FritzThermostat::parseDevices(HTTPClient &http, std::vector<Thermostat> &thermostats, bool useUids)
 {
     const char *_LOWER_TEMPERATURE = "LOWER_TEMPERATURE";
     const char *_skills = "skills";
@@ -385,7 +454,7 @@ bool FritzThermostat::parseDevices(HTTPClient &http, std::vector<Thermostat> &th
         }
 
         Thermostat *info = NULL;
-        auto id = std::to_string(device["id"].as<int>());
+        auto id = getDeviceId(device.as<JsonObject>(), useUids);
 
         // get thermostat info or create a new one
         for (auto iter = thermostats.begin(); iter != thermostats.end(); iter++)
@@ -403,7 +472,8 @@ bool FritzThermostat::parseDevices(HTTPClient &http, std::vector<Thermostat> &th
             info = &thermostats.back();
         }
 
-        info->id = std::to_string(device["id"].as<int>());
+        info->id = id;
+        info->deviceId = std::to_string(device["id"].as<int>());
         bool isThermostat = false;
         // the device's own temperature sensor unit, reported also while FRITZ!Box uses an external sensor
         JsonObject ownTemperature;
@@ -462,6 +532,9 @@ bool FritzThermostat::parseDevices(HTTPClient &http, std::vector<Thermostat> &th
                             info->targetTemperatureHigh = (*preset)[_temperature].as<double>() * 10;
                         }
                     }
+
+                    // "Schedule enabled" of the FRITZ!OS 8.x form; on when missing, so that a post doesn't switch it off
+                    info->timerActive = (*skill)["timeControl"]["isEnabled"] | true;
 
                     // rebuild the timetable from scratch, otherwise switch points removed in FRITZ!Box survive in the
                     // cached thermostat and are posted back with the next offset update

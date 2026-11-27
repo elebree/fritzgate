@@ -46,6 +46,8 @@ class Thermostat : public Sensor
 public:
     // unit UID (the AIN) used by the Smart Home REST API of FRITZ!OS 8.20+, reported by sh_control since FRITZ!OS 8.x
     std::string uid;
+    // numeric device id of sh_control, which saveTemperature takes; empty when read with the REST API
+    std::string deviceId;
     // false if FRITZ!Box reports no current temperature, then the offset can't be computed
     bool temperatureValid = false;
     int windowOpenTimer;
@@ -59,6 +61,8 @@ public:
     bool externalLocked = false;
     bool pushServiceEnabled = false;
     std::string pushServiceMail;
+    // weekly timetable switched on (timeControl.isEnabled), "Schedule enabled" in the FRITZ!OS 8.x form
+    bool timerActive = true;
     uint32_t targetTemperature = 0;
     uint32_t targetTemperatureLow = 0;
     uint32_t targetTemperatureHigh = 0;
