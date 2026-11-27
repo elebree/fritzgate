@@ -9,6 +9,14 @@
 #include <WString.h>
 #include <ctime>
 
+// How FritzGate writes the offset on FRITZ!OS 8.x. FRITZ!OS 7.x always uses data.lua (sh_control and its edit form).
+//   0: the Smart Home REST API on 8.20+; read-only on 8.0x-8.1x, which have no REST API.
+//   1: experimental: data.lua on every 8.x, with the edit form of 8.x (DataLua8Api)
+// Change it here, or set it with build_flags = -D FRITZOS8_DATA_LUA=1 in platformio.ini.
+#ifndef FRITZOS8_DATA_LUA
+#define FRITZOS8_DATA_LUA 0
+#endif
+
 // Login to the FRITZ!Box, and the API that reads the thermostats and writes their offset, chosen after each login
 class Session
 {
@@ -26,6 +34,7 @@ private:
   long mTimeTillLogout;
 
   DataLuaApi mDataLuaApi;
+  DataLua8Api mDataLua8Api;
   ReadOnlyDataLuaApi mReadOnlyApi;
   RestApi mRestApi;
   // the API chosen after the login, NULL while not logged in
